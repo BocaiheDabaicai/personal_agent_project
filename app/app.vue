@@ -1,15 +1,22 @@
 <script setup lang="ts">
-const theme = ref<'light' | 'dark'>('light')
+import '@fontsource-variable/geist'
+import '@fontsource-variable/geist-mono'
+
+type Theme = 'workbench-dark' | 'workbench-light'
+
+const theme = ref<Theme>('workbench-light')
 
 onMounted(() => {
   const saved = localStorage.getItem('theme')
-  if (saved === 'light' || saved === 'dark') {
-    theme.value = saved
+  if (saved === 'workbench-light' || saved === 'light') {
+    theme.value = 'workbench-light'
+  } else if (saved === 'workbench-dark' || saved === 'dark') {
+    theme.value = 'workbench-dark'
   }
 })
 
 function toggleTheme() {
-  theme.value = theme.value === 'light' ? 'dark' : 'light'
+  theme.value = theme.value === 'workbench-dark' ? 'workbench-light' : 'workbench-dark'
   localStorage.setItem('theme', theme.value)
 }
 
@@ -19,18 +26,22 @@ useHead({
 </script>
 
 <template>
-  <div class="min-h-screen bg-base-200">
-    <header class="navbar bg-base-100 shadow-sm">
+  <div class="wb-shell min-h-screen bg-base-200">
+    <header class="navbar wb-navbar">
       <div class="flex-1 px-4 flex items-center gap-6">
-        <NuxtLink to="/" class="text-lg font-bold">Personal Agent Platform</NuxtLink>
+        <NuxtLink to="/" class="flex items-center gap-2 text-lg font-semibold tracking-tight">
+          <span class="wb-mark inline-block h-2.5 w-2.5 rounded-[4px]" />
+          <span>Personal Agent Platform</span>
+        </NuxtLink>
         <nav class="flex gap-4 text-sm">
-          <NuxtLink to="/" class="link link-hover">项目</NuxtLink>
-          <NuxtLink to="/workflow" class="link link-hover">工作流画布</NuxtLink>
+          <NuxtLink to="/" class="wb-nav-link">项目</NuxtLink>
+          <NuxtLink to="/workflow" class="wb-nav-link">工作流画布</NuxtLink>
+          <NuxtLink to="/design-preview" class="wb-nav-link">设计预览</NuxtLink>
         </nav>
       </div>
       <div class="flex-none px-4">
-        <button class="btn btn-ghost btn-sm" @click="toggleTheme">
-          {{ theme === 'light' ? '切到深色' : '切到浅色' }}
+        <button class="btn btn-ghost btn-sm wb-press" @click="toggleTheme">
+          {{ theme === 'workbench-dark' ? '切到浅色' : '切到深色' }}
         </button>
       </div>
     </header>

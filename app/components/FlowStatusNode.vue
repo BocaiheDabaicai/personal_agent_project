@@ -19,11 +19,17 @@ const meta = computed(() => statusMeta[props.data.status])
 </script>
 
 <template>
-  <div class="card bg-base-100 shadow-md w-60 border border-base-300">
+  <div class="card bg-base-100 shadow-sm w-60 border border-base-300 wb-hover-lift">
     <div class="card-body p-4">
       <div class="flex items-center justify-between gap-2">
         <span class="font-semibold text-sm">{{ data.title }}</span>
-        <span class="badge badge-sm" :class="meta.badge">{{ meta.label }}</span>
+        <span class="badge badge-sm gap-1" :class="meta.badge">
+          <span
+            v-if="data.status === 'running'"
+            class="wb-pulse-dot inline-block h-1.5 w-1.5 rounded-full bg-current"
+          />
+          {{ meta.label }}
+        </span>
       </div>
       <p v-if="data.detail" class="text-xs opacity-60">{{ data.detail }}</p>
     </div>
