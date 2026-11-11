@@ -4,9 +4,9 @@
 
 ## 当前
 
-- 当前步骤：Step 5 — Agent SDK 通路验证
-- 状态：代码完成，已验证 SDK 通路（脚本输出「正常 / success」），等待你在终端执行确认
-- 下一步：Step 6 — 项目工作区 + git
+- 当前步骤：Step 6 — 项目工作区 + git
+- 状态：进行中
+- 下一步：Step 7 — 规划 Agent 生成结构化计划
 
 ## 路线（11 步）
 
@@ -14,7 +14,7 @@
 - [x] Step 2 DaisyUI 外观
 - [x] Step 3 SQLite + 项目 CRUD
 - [x] Step 4 静态工作流画布（Vue Flow）
-- [ ] Step 5 Agent SDK 通路验证
+- [x] Step 5 Agent SDK 通路验证
 - [ ] Step 6 项目工作区 + git
 - [ ] Step 7 规划 Agent 生成结构化计划
 - [ ] Step 8 真实画布 + 计划审批

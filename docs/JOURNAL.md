@@ -58,3 +58,8 @@
 - 首次运行失败：SDK 子进程为生成会话标题调用 `deepseek-flash` 被代理拒绝（`unrecognized_model`）；在 env 中设置 `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1` 后成功
 - 验证：`pnpm tsx scripts/agent-hello.ts` 输出「正常 / [result] success」
 - 等待你在终端执行确认；下一步 Step 6 项目工作区 + git
+
+## 2026-11-11 · Step 5 完成
+
+- 用户确认 Agent SDK 通路可用
+- 进入 Step 6：为每个项目创建独立 git 工作区
