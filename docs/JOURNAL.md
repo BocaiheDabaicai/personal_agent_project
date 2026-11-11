@@ -63,3 +63,16 @@
 
 - 用户确认 Agent SDK 通路可用
 - 进入 Step 6：为每个项目创建独立 git 工作区
+
+## 2026-11-11 · Step 6 开始
+
+- 新增 `server/utils/workspace.ts`：创建 `workspaces/<projectId>/repo`、写 `.gitignore`、`git init -b main`、本地身份配置与初始提交
+- 创建项目时自动初始化工作区；新增 `GET /api/projects/:id/workspace` 返回路径与 `git log`
+- 项目列表新增「查看工作区」按钮，展示路径与最近提交
+- 验证：新项目自动生成仓库（初始提交 `9a4de59`），API 返回路径/日志，仓库 `.gitignore` 含 `.agent/`、`node_modules/`、`.env*`
+- 等待浏览器确认；下一步 Step 7 规划 Agent 生成结构化计划
+
+## 2026-11-11 · Step 6 完成
+
+- 用户确认自动创建 git 工作区
+- 进入 Step 7：规划 Agent 输出结构化 plan.json 并入库

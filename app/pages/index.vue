@@ -7,11 +7,19 @@ interface Project {
   createdAt: string
 }
 
+interface WorkspaceInfo {
+  repoPath: string
+  exists: boolean
+  log: string[]
+}
+
 const { data: projects, refresh } = await useFetch<Project[]>('/api/projects')
 
 const form = reactive({ name: '', goal: '' })
 const saving = ref(false)
 const error = ref('')
+
+const workspaces = reactive<Record<number, WorkspaceInfo>>({})
 
 async function createProject() {
   error.value = ''
@@ -35,6 +43,10 @@ async function createProject() {
   } finally {
     saving.value = false
   }
+}
+
+async function loadWorkspace(id: number) {
+  workspaces[id] = await $fetch<WorkspaceInfo>(`/api/projects/${id}/workspace`)
 }
 </script>
 
@@ -86,6 +98,25 @@ async function createProject() {
               <span class="badge badge-outline">{{ p.status }}</span>
             </div>
             <div class="text-xs opacity-50 mt-2">创建于 {{ p.createdAt }}</div>
+
+            <div class="mt-3">
+              <button class="btn btn-xs btn-outline" @click="loadWorkspace(p.id)">
+                查看工作区
+              </button>
+              <div
+                v-if="workspaces[p.id]"
+                class="mt-2 text-xs bg-base-200 rounded-box p-3 space-y-1"
+              >
+                <div class="break-all">路径：{{ workspaces[p.id]?.repoPath }}</div>
+                <template v-if="workspaces[p.id]?.exists">
+                  <div class="opacity-60">最近提交：</div>
+                  <ul>
+                    <li v-for="line in workspaces[p.id]?.log" :key="line">{{ line }}</li>
+                  </ul>
+                </template>
+                <div v-else class="text-warning">工作区尚未初始化</div>
+              </div>
+            </div>
           </li>
         </ul>
       </div>
