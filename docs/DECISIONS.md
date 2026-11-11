@@ -12,6 +12,12 @@ Nuxt 4 + TypeScript + Tailwind 4 + DaisyUI 5 + Vue Flow + SQLite（Drizzle + bet
 
 理由：官方稳定、工具权限体系完整、可沿用现有模型链路。Step 5 最早验证；失败则回退 `claude -p` headless，DSH 适配器后置。
 
+## D-004 Agent SDK 非必要流量（2026-11-11）
+
+调用 `@anthropic-ai/claude-agent-sdk` 时，env 中需设置 `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1`。
+
+原因：当前模型代理不认识会话标题生成请求（`deepseek-flash` → `unrecognized_model`），SDK 子进程会因此退出；关闭非必要流量后主对话正常完成。
+
 ## D-003 跨设备续作（2026-11-11）
 
 开发进度与决策写入仓库文档（CLAUDE.md + docs/），随 git 同步；平台运行数据（`data/`、`workspaces/`）与 `.env` 不入库。

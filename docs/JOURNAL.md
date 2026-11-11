@@ -49,3 +49,12 @@
 - 用户已在浏览器确认工作流画布
 - 约定：每步用户确认后，自动更新文档、提交并推送
 - 进入 Step 5：验证 Agent SDK 能驱动模型
+
+## 2026-11-11 · Step 5 开始
+
+- 安装 @anthropic-ai/claude-agent-sdk 0.3.322 + tsx 4.23.15
+- `claude -p "reply with exactly: OK"` 验证现有模型通路可用
+- 新增 `scripts/agent-hello.ts`：`query()` 单轮、无工具，打印流式文本与 result
+- 首次运行失败：SDK 子进程为生成会话标题调用 `deepseek-flash` 被代理拒绝（`unrecognized_model`）；在 env 中设置 `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1` 后成功
+- 验证：`pnpm tsx scripts/agent-hello.ts` 输出「正常 / [result] success」
+- 等待你在终端执行确认；下一步 Step 6 项目工作区 + git
