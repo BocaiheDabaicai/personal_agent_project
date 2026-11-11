@@ -1,0 +1,33 @@
+<script setup lang="ts">
+import { Handle, Position } from '@vue-flow/core'
+
+const props = defineProps<{
+  data: {
+    title: string
+    detail?: string
+    status: 'done' | 'running' | 'pending'
+  }
+}>()
+
+const statusMeta = {
+  done: { label: '已完成', badge: 'badge-success' },
+  running: { label: '执行中', badge: 'badge-warning' },
+  pending: { label: '待处理', badge: 'badge-ghost' },
+} as const
+
+const meta = computed(() => statusMeta[props.data.status])
+</script>
+
+<template>
+  <div class="card bg-base-100 shadow-md w-60 border border-base-300">
+    <div class="card-body p-4">
+      <div class="flex items-center justify-between gap-2">
+        <span class="font-semibold text-sm">{{ data.title }}</span>
+        <span class="badge badge-sm" :class="meta.badge">{{ meta.label }}</span>
+      </div>
+      <p v-if="data.detail" class="text-xs opacity-60">{{ data.detail }}</p>
+    </div>
+    <Handle type="target" :position="Position.Left" />
+    <Handle type="source" :position="Position.Right" />
+  </div>
+</template>

@@ -26,3 +26,26 @@
 - 用户已在浏览器确认 DaisyUI 外观与主题切换
 - 远端仓库已配置；提交 Step 1–2 并推送
 - 进入 Step 3：SQLite + 项目 CRUD
+
+## 2026-11-11 · Step 3 开始
+
+- 安装 drizzle-orm 0.45.4 / better-sqlite3 13.0.3 / drizzle-kit 0.31.11
+- `server/db/schema.ts` 定义 projects 表；`server/utils/db.ts` 单例连接（WAL + 外键）；`drizzle.config.ts`
+- `pnpm db:push` 创建 `data/app.db`
+- API：`GET/POST /api/projects`；首页改为 `app/pages/index.vue`（创建表单 + 列表），并引入 `app/app.vue` + `<NuxtPage />` 布局
+- 验证：创建/读取成功；中文 UTF-8 存储正确；重启服务后数据仍在
+- 等待浏览器确认；下一步 Step 4 静态工作流画布
+
+## 2026-11-11 · Step 4 开始
+
+- 安装 @vue-flow/core 1.48.2 + @vue-flow/background 1.3.2
+- 新增 `app/components/WorkflowCanvas.client.vue`（写死 3 节点 2 连线）、自定义状态节点 `app/components/FlowStatusNode.vue`、演示页 `/workflow`，导航加入口
+- `nuxt.config.ts` 引入 Vue Flow 样式；画布组件用 `.client.vue` 避开 SSR
+- 验证：`/workflow` 返回 200，HTML 含页面标题与 Vue Flow 资源，服务端无报错
+- 等待浏览器确认；下一步 Step 5 Agent SDK 通路验证
+
+## 2026-11-11 · Step 4 完成
+
+- 用户已在浏览器确认工作流画布
+- 约定：每步用户确认后，自动更新文档、提交并推送
+- 进入 Step 5：验证 Agent SDK 能驱动模型
