@@ -11,5 +11,30 @@ export const projects = sqliteTable('projects', {
   updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
 })
 
+export const nodes = sqliteTable('nodes', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  projectId: integer('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  planVersion: integer('plan_version').notNull(),
+  nodeKey: text('node_key').notNull(),
+  kind: text('kind').notNull(),
+  title: text('title').notNull(),
+  spec: text('spec').notNull(),
+  status: text('status').notNull().default('pending'),
+  order: integer('node_order').notNull(),
+  x: integer('x').notNull().default(0),
+  y: integer('y').notNull().default(0),
+  createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+})
+
+export const edges = sqliteTable('edges', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  projectId: integer('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  planVersion: integer('plan_version').notNull(),
+  sourceKey: text('source_key').notNull(),
+  targetKey: text('target_key').notNull(),
+})
+
 export type Project = typeof projects.$inferSelect
 export type NewProject = typeof projects.$inferInsert
+export type PlanNodeRow = typeof nodes.$inferSelect
+export type PlanEdgeRow = typeof edges.$inferSelect

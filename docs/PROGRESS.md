@@ -4,9 +4,9 @@
 
 ## 当前
 
-- 当前步骤：Step 7 — 规划 Agent 生成结构化计划
+- 当前步骤：Step 8 — 真实画布 + 计划审批（先确定 UI 风格）
 - 状态：进行中
-- 下一步：Step 8 — 真实画布 + 计划审批
+- 下一步：Step 9 — 开发者 Agent + SSE 实时日志
 
 ## 路线（11 步）
 
@@ -16,7 +16,7 @@
 - [x] Step 4 静态工作流画布（Vue Flow）
 - [x] Step 5 Agent SDK 通路验证
 - [x] Step 6 项目工作区 + git
-- [ ] Step 7 规划 Agent 生成结构化计划
+- [x] Step 7 规划 Agent 生成结构化计划
 - [ ] Step 8 真实画布 + 计划审批
 - [ ] Step 9 开发者 Agent + SSE 实时日志
 - [ ] Step 10 审查 Agent + 结构化裁决

@@ -13,6 +13,21 @@ interface WorkspaceInfo {
   log: string[]
 }
 
+interface PlanResult {
+  planVersion: number
+  plan: {
+    summary: string
+    nodes: Array<{
+      id: string
+      kind: 'develop' | 'review' | 'gate'
+      title: string
+      spec: string
+      order: number
+    }>
+    edges: Array<{ source: string; target: string }>
+  }
+}
+
 const { data: projects, refresh } = await useFetch<Project[]>('/api/projects')
 
 const form = reactive({ name: '', goal: '' })
@@ -20,6 +35,9 @@ const saving = ref(false)
 const error = ref('')
 
 const workspaces = reactive<Record<number, WorkspaceInfo>>({})
+const plans = reactive<Record<number, PlanResult | undefined>>({})
+const planning = reactive<Record<number, boolean>>({})
+const planErrors = reactive<Record<number, string>>({})
 
 async function createProject() {
   error.value = ''
@@ -48,6 +66,22 @@ async function createProject() {
 async function loadWorkspace(id: number) {
   workspaces[id] = await $fetch<WorkspaceInfo>(`/api/projects/${id}/workspace`)
 }
+
+async function generatePlan(project: Project) {
+  planning[project.id] = true
+  planErrors[project.id] = ''
+  try {
+    plans[project.id] = await $fetch<PlanResult>(`/api/projects/${project.id}/plan`, {
+      method: 'POST',
+    })
+    await refresh()
+  } catch (e) {
+    const err = e as { data?: { statusMessage?: string }; message?: string }
+    planErrors[project.id] = err.data?.statusMessage || err.message || '规划失败'
+  } finally {
+    planning[project.id] = false
+  }
+}
 </script>
 
 <template>
@@ -55,7 +89,7 @@ async function loadWorkspace(id: number) {
     <div class="card bg-base-100 shadow">
       <div class="card-body">
         <h2 class="card-title">新建项目</h2>
-        <p class="text-sm opacity-70">先手动创建项目；Step 7 起会由 AI 自动生成执行计划。</p>
+        <p class="text-sm opacity-70">先手动创建项目，再让规划 Agent 生成执行计划。</p>
         <input
           v-model="form.name"
           class="input input-bordered w-full"
@@ -99,23 +133,53 @@ async function loadWorkspace(id: number) {
             </div>
             <div class="text-xs opacity-50 mt-2">创建于 {{ p.createdAt }}</div>
 
-            <div class="mt-3">
+            <div class="mt-3 flex items-center gap-2">
               <button class="btn btn-xs btn-outline" @click="loadWorkspace(p.id)">
                 查看工作区
               </button>
-              <div
-                v-if="workspaces[p.id]"
-                class="mt-2 text-xs bg-base-200 rounded-box p-3 space-y-1"
+              <button
+                class="btn btn-xs btn-primary"
+                :disabled="planning[p.id]"
+                @click="generatePlan(p)"
               >
-                <div class="break-all">路径：{{ workspaces[p.id]?.repoPath }}</div>
-                <template v-if="workspaces[p.id]?.exists">
-                  <div class="opacity-60">最近提交：</div>
-                  <ul>
-                    <li v-for="line in workspaces[p.id]?.log" :key="line">{{ line }}</li>
-                  </ul>
-                </template>
-                <div v-else class="text-warning">工作区尚未初始化</div>
+                <span v-if="planning[p.id]" class="loading loading-spinner loading-xs" />
+                {{ planning[p.id] ? '规划中…' : '生成计划' }}
+              </button>
+            </div>
+
+            <p v-if="planErrors[p.id]" class="text-error text-xs mt-2">
+              {{ planErrors[p.id] }}
+            </p>
+
+            <div
+              v-if="workspaces[p.id]"
+              class="mt-2 text-xs bg-base-200 rounded-box p-3 space-y-1"
+            >
+              <div class="break-all">路径：{{ workspaces[p.id]?.repoPath }}</div>
+              <template v-if="workspaces[p.id]?.exists">
+                <div class="opacity-60">最近提交：</div>
+                <ul>
+                  <li v-for="line in workspaces[p.id]?.log" :key="line">{{ line }}</li>
+                </ul>
+              </template>
+              <div v-else class="text-warning">工作区尚未初始化</div>
+            </div>
+
+            <div
+              v-if="plans[p.id]"
+              class="mt-2 text-xs bg-base-200 rounded-box p-3 space-y-1"
+            >
+              <div class="font-semibold">
+                计划 v{{ plans[p.id]?.planVersion }} ·
+                {{ plans[p.id]?.plan.nodes.length ?? 0 }} 个节点
               </div>
+              <div class="opacity-70">{{ plans[p.id]?.plan.summary }}</div>
+              <details>
+                <summary class="cursor-pointer">查看计划 JSON</summary>
+                <pre class="mt-2 p-2 bg-base-100 rounded overflow-auto max-h-64">{{
+                  JSON.stringify(plans[p.id], null, 2)
+                }}</pre>
+              </details>
             </div>
           </li>
         </ul>

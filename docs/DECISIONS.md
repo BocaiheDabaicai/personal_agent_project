@@ -18,6 +18,12 @@ Nuxt 4 + TypeScript + Tailwind 4 + DaisyUI 5 + Vue Flow + SQLite（Drizzle + bet
 
 原因：当前模型代理不认识会话标题生成请求（`deepseek-flash` → `unrecognized_model`），SDK 子进程会因此退出；关闭非必要流量后主对话正常完成。
 
+## D-005 结构化输出（2026-11-11）
+
+规划/审查等 Agent 的输出统一写入工作区 `.agent/*.json`，由服务端用 Zod 校验；校验失败将错误回灌给 Agent 并重试一次。
+
+原因：比解析 stdout 可靠、可审计，避免模型闲聊或输出截断导致解析失败。
+
 ## D-003 跨设备续作（2026-11-11）
 
 开发进度与决策写入仓库文档（CLAUDE.md + docs/），随 git 同步；平台运行数据（`data/`、`workspaces/`）与 `.env` 不入库。

@@ -76,3 +76,18 @@
 
 - 用户确认自动创建 git 工作区
 - 进入 Step 7：规划 Agent 输出结构化 plan.json 并入库
+
+## 2026-11-11 · Step 7 开始
+
+- 安装 zod 4.6.7；新增 `shared/schemas/plan.ts`（节点/连线契约、引用校验、错误格式化）
+- 数据库新增 nodes / edges 表（按 planVersion 保留历史）；`pnpm db:push` 同步
+- `server/agents/planner.ts`：规划 Agent（Read/Write/Glob/Grep，acceptEdits，cwd=项目工作区）写 `.agent/plan.json`；失败或校验不过重试一次
+- API：`POST/GET /api/projects/:id/plan`，事务写入节点/连线并更新 `currentPlanVersion` 与项目状态
+- 页面新增「生成计划」按钮与 JSON 预览
+- 验证：POST 返回计划 v1（实现问候脚本 → 审查 → 人工验收），`plan.json` 已写入；数据库与 GET 接口一致
+- 等待浏览器确认；下一步 Step 8 真实画布 + 计划审批
+
+## 2026-11-11 · Step 7 完成
+
+- 用户确认规划 Agent 与计划入库
+- 进入 Step 8：先讨论并确定 UI 风格，再实现真实画布与审批
