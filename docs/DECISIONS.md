@@ -18,6 +18,18 @@ Nuxt 4 + TypeScript + Tailwind 4 + DaisyUI 5 + Vue Flow + SQLite（Drizzle + bet
 
 原因：当前模型代理不认识会话标题生成请求（`deepseek-flash` → `unrecognized_model`），SDK 子进程会因此退出；关闭非必要流量后主对话正常完成。
 
+## D-007 配色策略：中性 + 主色 + 语义色（2026-11-11）
+
+界面使用 DaisyUI 默认主题（light/dark）；UI 层以中性色 + primary 为骨架，保留 info / success / warning / error 四种语义色，用于状态徽章、提示和关键操作（如批准 / 打回）。不使用 secondary / accent 装饰色。
+
+原因：多轮配色后确定以简洁、可读、低干扰为先，同时保留必要的语义反馈。
+
+## D-006 配色回退 DaisyUI 默认（2026-11-11）
+
+经过多轮自定义配色尝试后，决定采用 DaisyUI 官方默认主题（`light` 为默认，`dark` 可切换）。颜色、按钮与徽章样式交由 DaisyUI；自定义仅保留布局、Geist 字体、反馈动效与原生 View Transitions。
+
+原因：减少反复调色的维护成本，保持组件风格一致，把精力放回功能开发。
+
 ## D-005 结构化输出（2026-11-11）
 
 规划/审查等 Agent 的输出统一写入工作区 `.agent/*.json`，由服务端用 Zod 校验；校验失败将错误回灌给 Agent 并重试一次。

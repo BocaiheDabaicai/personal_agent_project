@@ -34,7 +34,18 @@ export const edges = sqliteTable('edges', {
   targetKey: text('target_key').notNull(),
 })
 
+export const decisions = sqliteTable('decisions', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  projectId: integer('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  nodeId: integer('node_id'),
+  gate: text('gate').notNull(),
+  decision: text('decision').notNull(),
+  comment: text('comment'),
+  createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+})
+
 export type Project = typeof projects.$inferSelect
 export type NewProject = typeof projects.$inferInsert
 export type PlanNodeRow = typeof nodes.$inferSelect
 export type PlanEdgeRow = typeof edges.$inferSelect
+export type DecisionRow = typeof decisions.$inferSelect

@@ -40,12 +40,10 @@ const surfaces = [
 
 const palette = [
   { name: 'primary', label: '主色 / 强调', className: 'bg-primary text-primary-content' },
-  { name: 'secondary', label: '次要色', className: 'bg-secondary text-secondary-content' },
-  { name: 'accent', label: '辅助色', className: 'bg-accent text-accent-content' },
   { name: 'neutral', label: '中性强调', className: 'bg-neutral text-neutral-content' },
-  { name: 'info', label: '信息', className: 'bg-info text-info-content' },
+  { name: 'info', label: '通知 / 信息', className: 'bg-info text-info-content' },
   { name: 'success', label: '成功', className: 'bg-success text-success-content' },
-  { name: 'warning', label: '进行中 / 警告', className: 'bg-warning text-warning-content' },
+  { name: 'warning', label: '警告 / 进行中', className: 'bg-warning text-warning-content' },
   { name: 'error', label: '失败 / 错误', className: 'bg-error text-error-content' },
 ]
 
@@ -62,18 +60,18 @@ const statuses = [
   <div class="max-w-5xl mx-auto space-y-10">
     <header class="space-y-2">
       <div class="flex items-center gap-3">
-        <h1 class="text-2xl font-semibold tracking-tight wb-title-gradient">Workbench 设计预览</h1>
-        <span class="badge badge-primary badge-sm">UI 提案 v6 · Warm Paper</span>
+        <h1 class="text-2xl font-semibold tracking-tight">Workbench 设计预览</h1>
+        <span class="badge badge-primary badge-sm">v12 · Semantic</span>
       </div>
       <p class="text-sm opacity-70 max-w-2xl">
-        借鉴 Claude 的暖纸质感：象牙暖白底、陶土橙主色、鼠尾草绿与暖金辅助；深色主题是暖棕炭色。
-        保留 Geist 字体、柔和反馈与原生 View Transitions。
+        中性底 + 主色为骨架；保留通知（信息）、成功、警告、失败四种语义色，用于状态、提示与关键操作。
+        不再使用次要色和装饰色，整体保持简洁。
       </p>
     </header>
 
     <section>
       <h2 class="text-lg font-semibold mb-1">配色</h2>
-      <p class="text-sm opacity-60 mb-4">中性灰为基础，靛蓝作为唯一强调色；状态用语义色表达。</p>
+      <p class="text-sm opacity-60 mb-4">中性表面 + 一个主色；通知、成功、警告、失败四种语义色只在需要时出现。</p>
       <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
         <div
           v-for="s in surfaces"
@@ -85,7 +83,7 @@ const statuses = [
           <div class="font-mono text-xs mt-1">{{ s.name }}</div>
         </div>
       </div>
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
+      <div class="grid grid-cols-2 md:grid-cols-3 gap-3 mt-3">
         <div v-for="c in palette" :key="c.name" class="rounded-box p-4" :class="c.className">
           <div class="text-xs opacity-80">{{ c.label }}</div>
           <div class="font-mono text-xs mt-1">{{ c.name }}</div>
@@ -95,7 +93,7 @@ const statuses = [
 
     <section>
       <h2 class="text-lg font-semibold mb-1">状态语言</h2>
-      <p class="text-sm opacity-60 mb-4">同一套徽章贯穿画布、列表和检查器；运行中的状态带呼吸圆点。</p>
+      <p class="text-sm opacity-60 mb-4">状态用语义色徽章表达；运行中的状态带呼吸圆点。</p>
       <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
         <div
           v-for="s in statuses"
@@ -124,13 +122,18 @@ const statuses = [
         <button class="btn btn-primary wb-press" @click="showToast('success', '已批准，进入下一节点')">
           批准
         </button>
-        <button class="btn btn-secondary wb-press" @click="showToast('info', '已切换节点')">
-          次要操作
+        <button class="btn btn-success wb-press" @click="showToast('success', '审查通过，进入下一节点')">
+          通过
+        </button>
+        <button class="btn btn-error wb-press" @click="showToast('error', '已打回并记录原因')">
+          打回
         </button>
         <button class="btn btn-outline wb-press" @click="showToast('warning', '有 2 条审查意见待处理')">
           描边按钮
         </button>
-        <button class="btn btn-ghost wb-press">幽灵按钮</button>
+        <button class="btn btn-ghost wb-press" @click="showToast('info', '已切换节点')">
+          幽灵按钮
+        </button>
         <button class="btn btn-primary" :disabled="demoLoading" @click="simulateLoading">
           <span v-if="demoLoading" class="loading loading-spinner loading-sm" />
           {{ demoLoading ? '提交中…' : '模拟加载' }}
@@ -139,9 +142,10 @@ const statuses = [
       </div>
 
       <div class="space-y-2 mt-5">
-        <div class="alert alert-success">审查通过：greet.js 输出与退出码符合预期</div>
-        <div class="alert alert-warning">等待人工审批：计划 v1 已生成，请确认后继续</div>
-        <div class="alert alert-error">开发任务失败：测试未通过，已回退到上一提交</div>
+        <div class="alert alert-info text-sm">通知：计划已生成，等待审批。</div>
+        <div class="alert alert-success text-sm">成功：审查通过，输出与退出码符合预期。</div>
+        <div class="alert alert-warning text-sm">警告：有 2 条审查意见待处理。</div>
+        <div class="alert alert-error text-sm">失败：开发任务测试未通过，已回退到上一提交。</div>
       </div>
     </section>
 
@@ -205,7 +209,10 @@ const statuses = [
               </div>
               <div class="flex items-center gap-2">
                 <span class="badge badge-sm badge-info">planned</span>
-                <button class="btn btn-xs btn-primary wb-press" @click="showToast('info', '已启动开发节点')">
+                <button
+                  class="btn btn-xs btn-primary wb-press"
+                  @click="showToast('info', '已启动开发节点')"
+                >
                   运行
                 </button>
               </div>
@@ -221,7 +228,7 @@ const statuses = [
                     </div>
                     <div class="text-xs opacity-60 mt-1">develop</div>
                   </div>
-                  <div class="text-primary">→</div>
+                  <div class="text-base-content/40">→</div>
                   <div
                     class="wb-hover-lift w-44 rounded-box border border-warning/50 bg-base-100 p-3 ring-2 ring-warning/20"
                   >
@@ -260,13 +267,13 @@ const statuses = [
                 </p>
                 <div class="flex gap-2">
                   <button
-                    class="btn btn-sm btn-primary wb-press"
+                    class="btn btn-sm btn-success wb-press"
                     @click="showToast('success', '已批准：进入人工验收')"
                   >
                     批准
                   </button>
                   <button
-                    class="btn btn-sm btn-ghost wb-press"
+                    class="btn btn-sm btn-outline btn-error wb-press"
                     @click="showToast('info', '已打回，等待修改意见')"
                   >
                     打回

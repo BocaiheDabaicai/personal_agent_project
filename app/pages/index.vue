@@ -13,6 +13,24 @@ interface WorkspaceInfo {
   log: string[]
 }
 
+const statusLabel: Record<string, string> = {
+  draft: '草稿',
+  planned: '待审批',
+  approved: '已批准',
+  plan_rejected: '已打回',
+  in_progress: '进行中',
+  done: '已完成',
+}
+
+const statusBadge: Record<string, string> = {
+  draft: 'badge-ghost',
+  planned: 'badge-info',
+  approved: 'badge-success',
+  plan_rejected: 'badge-error',
+  in_progress: 'badge-warning',
+  done: 'badge-success',
+}
+
 interface PlanResult {
   planVersion: number
   plan: {
@@ -129,16 +147,21 @@ async function generatePlan(project: Project) {
                 <div class="font-semibold">{{ p.name }}</div>
                 <div class="text-sm opacity-70">{{ p.goal }}</div>
               </div>
-              <span class="badge badge-outline">{{ p.status }}</span>
+              <span class="badge" :class="statusBadge[p.status] || 'badge-ghost'">
+                {{ statusLabel[p.status] || p.status }}
+              </span>
             </div>
             <div class="text-xs opacity-50 mt-2">创建于 {{ p.createdAt }}</div>
 
-            <div class="mt-3 flex items-center gap-2">
+            <div class="mt-3 flex flex-wrap items-center gap-2">
+              <NuxtLink :to="`/projects/${p.id}`" class="btn btn-xs btn-primary">
+                进入工作台
+              </NuxtLink>
               <button class="btn btn-xs btn-outline" @click="loadWorkspace(p.id)">
                 查看工作区
               </button>
               <button
-                class="btn btn-xs btn-primary"
+                class="btn btn-xs btn-outline"
                 :disabled="planning[p.id]"
                 @click="generatePlan(p)"
               >

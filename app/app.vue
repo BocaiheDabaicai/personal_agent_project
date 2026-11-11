@@ -2,21 +2,21 @@
 import '@fontsource-variable/geist'
 import '@fontsource-variable/geist-mono'
 
-type Theme = 'workbench-dark' | 'workbench-light'
+type Theme = 'dark' | 'light'
 
-const theme = ref<Theme>('workbench-light')
+const theme = ref<Theme>('light')
 
 onMounted(() => {
   const saved = localStorage.getItem('theme')
-  if (saved === 'workbench-light' || saved === 'light') {
-    theme.value = 'workbench-light'
-  } else if (saved === 'workbench-dark' || saved === 'dark') {
-    theme.value = 'workbench-dark'
+  if (saved === 'light' || saved === 'workbench-light') {
+    theme.value = 'light'
+  } else if (saved === 'dark' || saved === 'workbench-dark') {
+    theme.value = 'dark'
   }
 })
 
 function toggleTheme() {
-  theme.value = theme.value === 'workbench-dark' ? 'workbench-light' : 'workbench-dark'
+  theme.value = theme.value === 'dark' ? 'light' : 'dark'
   localStorage.setItem('theme', theme.value)
 }
 
@@ -41,7 +41,7 @@ useHead({
       </div>
       <div class="flex-none px-4">
         <button class="btn btn-ghost btn-sm wb-press" @click="toggleTheme">
-          {{ theme === 'workbench-dark' ? '切到浅色' : '切到深色' }}
+          {{ theme === 'dark' ? '切到浅色' : '切到深色' }}
         </button>
       </div>
     </header>

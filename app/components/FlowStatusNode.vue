@@ -15,7 +15,7 @@ const statusMeta = {
   pending: { label: '待处理', badge: 'badge-ghost' },
 } as const
 
-const meta = computed(() => statusMeta[props.data.status])
+const status = computed(() => statusMeta[props.data.status])
 </script>
 
 <template>
@@ -23,12 +23,12 @@ const meta = computed(() => statusMeta[props.data.status])
     <div class="card-body p-4">
       <div class="flex items-center justify-between gap-2">
         <span class="font-semibold text-sm">{{ data.title }}</span>
-        <span class="badge badge-sm gap-1" :class="meta.badge">
+        <span class="badge badge-sm gap-1" :class="status.badge">
           <span
             v-if="data.status === 'running'"
             class="wb-pulse-dot inline-block h-1.5 w-1.5 rounded-full bg-current"
           />
-          {{ meta.label }}
+          {{ status.label }}
         </span>
       </div>
       <p v-if="data.detail" class="text-xs opacity-60">{{ data.detail }}</p>
