@@ -1,0 +1,21 @@
+# Nuxt
+.nuxt
+.output
+.data
+dist
+
+# Dependencies
+node_modules
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Local runtime data
+data/
+workspaces/
+
+# Misc
+.DS_Store
+*.log
