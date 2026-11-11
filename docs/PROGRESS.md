@@ -4,14 +4,14 @@
 
 ## 当前
 
-- 当前步骤：Step 2 — DaisyUI 外观
-- 状态：代码完成，已本地验证编译产物，等待你在浏览器确认
-- 下一步：Step 3 — SQLite + 项目 CRUD
+- 当前步骤：Step 3 — SQLite + 项目 CRUD
+- 状态：进行中
+- 下一步：Step 4 — 静态工作流画布
 
 ## 路线（11 步）
 
 - [x] Step 1 脚手架 + 你好页面 + 文档体系
-- [ ] Step 2 DaisyUI 外观
+- [x] Step 2 DaisyUI 外观
 - [ ] Step 3 SQLite + 项目 CRUD
 - [ ] Step 4 静态工作流画布（Vue Flow）
 - [ ] Step 5 Agent SDK 通路验证

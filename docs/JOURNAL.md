@@ -20,3 +20,9 @@
 - 首页改为 navbar + card + badge + btn，右上角主题切换（localStorage 持久化）
 - 验证：页面 HTML 含 DaisyUI 类名；编译 CSS 含 `.btn`/`.navbar`；日志确认 daisyUI 5.7.50 已加载
 - 等待浏览器确认；下一步 Step 3 SQLite + 项目 CRUD
+
+## 2026-11-11 · Step 2 完成
+
+- 用户已在浏览器确认 DaisyUI 外观与主题切换
+- 远端仓库已配置；提交 Step 1–2 并推送
+- 进入 Step 3：SQLite + 项目 CRUD
