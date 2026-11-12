@@ -133,6 +133,8 @@ const planning = ref(false)
 const deciding = ref(false)
 const showReject = ref(false)
 const rejectComment = ref('')
+const showAcceptReject = ref(false)
+const acceptRejectComment = ref('')
 
 const startingRun = ref(false)
 const runActive = ref(false)
@@ -169,8 +171,9 @@ const statusLabel: Record<string, string> = {
   approved: '已批准',
   plan_rejected: '已打回',
   in_progress: '进行中',
-  reviewed: '审查通过',
+  reviewed: '待人工验收',
   review_failed: '审查未通过',
+  changes_requested: '待重新规划',
   done: '已完成',
 }
 const statusBadge: Record<string, string> = {
@@ -181,6 +184,7 @@ const statusBadge: Record<string, string> = {
   in_progress: 'badge-warning',
   reviewed: 'badge-success',
   review_failed: 'badge-error',
+  changes_requested: 'badge-warning',
   done: 'badge-success',
 }
 const kindLabel: Record<string, string> = {
@@ -226,6 +230,31 @@ function nodeTitle(nodeKey: string): string {
   return planNodes.value.find(node => node.nodeKey === nodeKey)?.title || nodeKey
 }
 
+const latestTaskReject = computed(
+  () => (decisionList.value ?? []).find(d => d.gate === 'task' && d.decision === 'reject'),
+)
+const latestPlanReject = computed(
+  () => (decisionList.value ?? []).find(d => d.gate === 'plan' && d.decision === 'reject'),
+)
+const reviewFeedback = computed(() =>
+  latestReviews.value
+    .filter(review => review.verdict === 'fail')
+    .map(review => {
+      const issues = review.issues.map(issue => {
+        const location = issue.file
+          ? `（${issue.file}${issue.line ? `:${issue.line}` : ''}）`
+          : ''
+        return `- [${severityLabel[issue.severity] || issue.severity}] ${issue.message}${location}`
+      })
+      return `开发节点「${nodeTitle(review.developNodeKey)}」审查未通过：${review.summary}\n${issues.join('\n')}`
+    })
+    .join('\n\n'),
+)
+const taskRejectFeedback = computed(
+  () => latestTaskReject.value?.comment || '人工验收未通过，请根据现有实现重新规划改进。',
+)
+const planRejectFeedback = computed(() => latestPlanReject.value?.comment || '')
+
 function readError(error: unknown): string {
   const err = error as { data?: { statusMessage?: string }; message?: string }
   return err.data?.statusMessage || err.message || '操作失败'
@@ -261,6 +290,38 @@ function rejectPlan() {
     return
   }
   submitDecision('reject', rejectComment.value.trim())
+}
+
+async function submitAcceptance(decision: 'approve' | 'reject', comment?: string) {
+  deciding.value = true
+  actionError.value = ''
+  actionMessage.value = ''
+  try {
+    await $fetch(`/api/projects/${projectId}/decisions`, {
+      method: 'POST',
+      body: { gate: 'task', decision, comment },
+    })
+    await Promise.all([refreshProject(), refreshDecisions(), refreshPlan()])
+    actionMessage.value = decision === 'approve' ? '项目已完成' : '已打回，待重新规划'
+    showAcceptReject.value = false
+    acceptRejectComment.value = ''
+  } catch (error) {
+    actionError.value = readError(error)
+  } finally {
+    deciding.value = false
+  }
+}
+
+function approveProject() {
+  submitAcceptance('approve')
+}
+
+function rejectProject() {
+  if (!acceptRejectComment.value.trim()) {
+    actionError.value = '请填写打回原因'
+    return
+  }
+  submitAcceptance('reject', acceptRejectComment.value.trim())
 }
 
 function timeLabel(ts: string): string {
@@ -452,15 +513,23 @@ watch(
   },
 )
 
-async function generatePlanAction() {
+async function generatePlanAction(feedback = '') {
   planning.value = true
   actionError.value = ''
   actionMessage.value = ''
   try {
-    await $fetch(`/api/projects/${projectId}/plan`, { method: 'POST' })
-    await Promise.all([refreshPlan(), refreshProject()])
+    await $fetch(`/api/projects/${projectId}/plan`, {
+      method: 'POST',
+      body: { feedback },
+    })
+    await Promise.all([refreshPlan(), refreshProject(), refreshReviews()])
     selectedKey.value = null
-    actionMessage.value = '新计划已生成，请审批'
+    logs.value = []
+    runActive.value = false
+    runState.value = 'idle'
+    runKind.value = 'develop'
+    closeStream()
+    actionMessage.value = feedback ? '迭代计划已生成，请审批' : '新计划已生成，请审批'
   } catch (error) {
     actionError.value = readError(error)
   } finally {
@@ -675,29 +744,108 @@ async function generatePlanAction() {
                 </template>
 
                 <template v-else-if="projectStatus === 'reviewed'">
-                  <div class="alert alert-success py-2 text-xs">
-                    审查通过，等待人工验收（Step 11）。
+                  <p class="mb-2 text-xs opacity-60">
+                    自动审查已通过，请人工验收；批准后项目完成，打回则进入重新规划。
+                  </p>
+                  <div class="flex gap-2">
+                    <button
+                      class="btn btn-sm btn-success wb-press"
+                      :disabled="deciding"
+                      @click="approveProject"
+                    >
+                      <span v-if="deciding" class="loading loading-spinner loading-xs" />
+                      批准完成
+                    </button>
+                    <button
+                      class="btn btn-sm btn-outline btn-error wb-press"
+                      :disabled="deciding"
+                      @click="showAcceptReject = !showAcceptReject"
+                    >
+                      打回
+                    </button>
+                  </div>
+                  <div v-if="showAcceptReject" class="mt-2 space-y-2">
+                    <textarea
+                      v-model="acceptRejectComment"
+                      class="textarea textarea-bordered textarea-sm w-full"
+                      rows="3"
+                      placeholder="说明打回原因，将作为重新规划的依据"
+                    />
+                    <button
+                      class="btn btn-sm btn-error wb-press"
+                      :disabled="deciding"
+                      @click="rejectProject"
+                    >
+                      确认打回
+                    </button>
                   </div>
                 </template>
 
                 <template v-else-if="projectStatus === 'review_failed'">
-                  <div class="alert alert-error py-2 text-xs">
-                    审查未通过，请查看下方审查结果；修复与迭代将在 Step 11 接入。
+                  <div class="space-y-2">
+                    <div class="alert alert-error py-2 text-xs">
+                      审查未通过，请根据下方审查问题重新规划。
+                    </div>
+                    <button
+                      class="btn btn-sm btn-primary wb-press"
+                      :disabled="planning"
+                      @click="
+                        generatePlanAction(
+                          reviewFeedback || '自动审查未通过，请根据审查记录重新规划',
+                        )
+                      "
+                    >
+                      <span v-if="planning" class="loading loading-spinner loading-xs" />
+                      根据审查问题重新规划
+                    </button>
+                  </div>
+                </template>
+
+                <template v-else-if="projectStatus === 'changes_requested'">
+                  <div class="space-y-2">
+                    <div class="alert alert-warning py-2 text-xs">
+                      人工验收未通过，需要重新规划。
+                    </div>
+                    <p
+                      v-if="latestTaskReject?.comment"
+                      class="whitespace-pre-wrap text-xs opacity-70"
+                    >
+                      {{ latestTaskReject.comment }}
+                    </p>
+                    <button
+                      class="btn btn-sm btn-primary wb-press"
+                      :disabled="planning"
+                      @click="generatePlanAction(taskRejectFeedback)"
+                    >
+                      <span v-if="planning" class="loading loading-spinner loading-xs" />
+                      重新规划
+                    </button>
                   </div>
                 </template>
 
                 <template v-else-if="projectStatus === 'plan_rejected'">
                   <div class="space-y-2">
                     <div class="alert alert-warning py-2 text-xs">计划已被打回，可重新生成。</div>
+                    <p
+                      v-if="latestPlanReject?.comment"
+                      class="whitespace-pre-wrap text-xs opacity-70"
+                    >
+                      {{ latestPlanReject.comment }}
+                    </p>
                     <button
                       class="btn btn-sm btn-primary wb-press"
                       :disabled="planning"
-                      @click="generatePlanAction"
+                      @click="generatePlanAction(planRejectFeedback)"
                     >
                       <span v-if="planning" class="loading loading-spinner loading-xs" />
                       重新生成计划
                     </button>
                   </div>
+                </template>
+
+                <template v-else-if="projectStatus === 'done'">
+                  <div class="alert alert-success py-2 text-xs">项目已完成，人工验收通过。</div>
+                  <p class="mt-2 text-xs opacity-60">最终代码与提交记录保存在项目工作区。</p>
                 </template>
 
                 <template v-else>

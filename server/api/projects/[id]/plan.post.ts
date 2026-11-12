@@ -2,6 +2,7 @@ import { and, eq, sql } from 'drizzle-orm'
 import { generatePlan } from '../../../agents/planner'
 import { edges, nodes, projects } from '../../../db/schema'
 import { db } from '../../../utils/db'
+import { getRun } from '../../../utils/runManager'
 import { ensureWorkspace } from '../../../utils/workspace'
 
 export default defineEventHandler(async (event) => {
@@ -15,16 +16,33 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, statusMessage: '项目不存在' })
   }
 
+  const activeRun = getRun(projectId)
+  if (activeRun?.status === 'running') {
+    throw createError({ statusCode: 409, statusMessage: '已有任务在运行，不能生成计划' })
+  }
+
+  let body: { feedback?: string } = {}
+  try {
+    body = (await readBody<{ feedback?: string }>(event)) ?? {}
+  } catch {
+    body = {}
+  }
+  const feedback = (body.feedback ?? '').trim().slice(0, 4000)
+
   const repoPath = ensureWorkspace(projectId)
 
   let plan
   try {
-    plan = await generatePlan({
-      id: project.id,
-      name: project.name,
-      goal: project.goal,
-      repoPath,
-    })
+    plan = await generatePlan(
+      {
+        id: project.id,
+        name: project.name,
+        goal: project.goal,
+        repoPath,
+        planVersion: project.currentPlanVersion,
+      },
+      feedback,
+    )
   } catch (error) {
     throw createError({
       statusCode: 502,

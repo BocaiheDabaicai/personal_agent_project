@@ -8,11 +8,12 @@ interface PlannerProject {
   name: string
   goal: string
   repoPath: string
+  planVersion: number
 }
 
 const PLAN_RELATIVE_PATH = '.agent/plan.json'
 
-function buildPrompt(project: PlannerProject, previousError: string): string {
+function buildPrompt(project: PlannerProject, previousError: string, feedback: string): string {
   const schemaExample = JSON.stringify(
     {
       summary: '一句话概括计划',
@@ -33,12 +34,15 @@ function buildPrompt(project: PlannerProject, previousError: string): string {
   const retryHint = previousError
     ? `\n上一次生成未通过校验，请修正以下问题后重新生成：\n${previousError}\n`
     : ''
+  const iterationHint = feedback
+    ? `\n这是第 ${project.planVersion + 1} 版迭代计划。上一轮反馈（来自审查或人工验收）：\n${feedback}\n\n请先阅读工作区现有代码和 .agent/plan.json，基于现状制定计划，不要假设仓库为空；新计划应解决上述反馈，并保留仍然有效的已完成工作。\n`
+    : ''
 
   return `你是「${project.name}」项目的规划 Agent。
 
 项目目标：
 ${project.goal}
-
+${iterationHint}
 请在当前工作区创建执行计划，写入 ${PLAN_RELATIVE_PATH}。只允许写这一个文件，不要修改其他文件，不要运行命令。
 ${retryHint}
 输出必须是严格的 JSON（不要 Markdown 代码块），格式示例：
@@ -56,15 +60,19 @@ ${schemaExample}
 完成后停止。`
 }
 
-async function runPlanner(project: PlannerProject, previousError: string): Promise<void> {
+async function runPlanner(
+  project: PlannerProject,
+  previousError: string,
+  feedback: string,
+): Promise<void> {
   const stream = query({
-    prompt: buildPrompt(project, previousError),
+    prompt: buildPrompt(project, previousError, feedback),
     options: {
       cwd: project.repoPath,
       tools: ['Read', 'Write', 'Glob', 'Grep'],
       allowedTools: ['Read', 'Write', 'Glob', 'Grep'],
       permissionMode: 'acceptEdits',
-      maxTurns: 6,
+      maxTurns: 16,
       env: {
         ...process.env,
         CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
@@ -84,7 +92,7 @@ async function runPlanner(project: PlannerProject, previousError: string): Promi
   }
 }
 
-export async function generatePlan(project: PlannerProject): Promise<Plan> {
+export async function generatePlan(project: PlannerProject, feedback = ''): Promise<Plan> {
   const agentDir = join(project.repoPath, '.agent')
   const planPath = join(project.repoPath, PLAN_RELATIVE_PATH)
   mkdirSync(agentDir, { recursive: true })
@@ -95,7 +103,7 @@ export async function generatePlan(project: PlannerProject): Promise<Plan> {
     rmSync(planPath, { force: true })
 
     try {
-      await runPlanner(project, lastError)
+      await runPlanner(project, lastError, feedback)
     } catch (error) {
       lastError = formatPlanError(error)
       continue

@@ -19,8 +19,9 @@ const statusLabel: Record<string, string> = {
   approved: '已批准',
   plan_rejected: '已打回',
   in_progress: '进行中',
-  reviewed: '审查通过',
+  reviewed: '待人工验收',
   review_failed: '审查未通过',
+  changes_requested: '待重新规划',
   done: '已完成',
 }
 
@@ -32,6 +33,7 @@ const statusBadge: Record<string, string> = {
   in_progress: 'badge-warning',
   reviewed: 'badge-success',
   review_failed: 'badge-error',
+  changes_requested: 'badge-warning',
   done: 'badge-success',
 }
 

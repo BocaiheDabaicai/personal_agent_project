@@ -1,5 +1,5 @@
-import { eq, sql } from 'drizzle-orm'
-import { decisions, projects } from '../../../db/schema'
+import { and, eq, sql } from 'drizzle-orm'
+import { decisions, nodes, projects } from '../../../db/schema'
 import { db } from '../../../utils/db'
 
 const GATES = new Set(['plan', 'task', 'iteration'])
@@ -35,6 +35,60 @@ export default defineEventHandler(async (event) => {
 
   const comment = body?.comment?.trim() || null
 
+  if (gate === 'task') {
+    if (project.status !== 'reviewed') {
+      throw createError({ statusCode: 400, statusMessage: '当前状态不能进行人工验收' })
+    }
+    if (decision !== 'approve' && !comment) {
+      throw createError({ statusCode: 400, statusMessage: '打回时请填写原因' })
+    }
+
+    const gateNode = db
+      .select()
+      .from(nodes)
+      .where(
+        and(
+          eq(nodes.projectId, projectId),
+          eq(nodes.planVersion, project.currentPlanVersion),
+          eq(nodes.kind, 'gate'),
+        ),
+      )
+      .get()
+
+    if (!gateNode) {
+      throw createError({ statusCode: 400, statusMessage: '找不到人工验收节点' })
+    }
+
+    return db.transaction((tx) => {
+      const row = tx
+        .insert(decisions)
+        .values({
+          projectId,
+          nodeId: gateNode.id,
+          gate,
+          decision,
+          comment,
+        })
+        .returning()
+        .get()
+
+      const approved = decision === 'approve'
+      tx.update(nodes)
+        .set({ status: approved ? 'done' : 'failed' })
+        .where(eq(nodes.id, gateNode.id))
+        .run()
+      tx.update(projects)
+        .set({
+          status: approved ? 'done' : 'changes_requested',
+          updatedAt: sql`(datetime('now'))`,
+        })
+        .where(eq(projects.id, projectId))
+        .run()
+
+      return row
+    })
+  }
+
   const row = db
     .insert(decisions)
     .values({
@@ -48,7 +102,8 @@ export default defineEventHandler(async (event) => {
     .get()
 
   if (gate === 'plan') {
-    const status = decision === 'approve' ? 'approved' : decision === 'reject' ? 'plan_rejected' : 'planned'
+    const status =
+      decision === 'approve' ? 'approved' : decision === 'reject' ? 'plan_rejected' : 'planned'
     db.update(projects)
       .set({ status, updatedAt: sql`(datetime('now'))` })
       .where(eq(projects.id, projectId))
