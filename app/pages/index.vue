@@ -31,23 +31,6 @@ const statusBadge: Record<string, string> = {
   done: 'badge-success',
 }
 
-// TODO(cleanup): 「生成计划」是 Step 7 的早期调试入口，Step 8 工作台已接管计划生成与审批。
-// 后续删除时一并移除：PlanResult、plans/planning/planErrors、generatePlan()、按钮与计划 JSON 预览。
-interface PlanResult {
-  planVersion: number
-  plan: {
-    summary: string
-    nodes: Array<{
-      id: string
-      kind: 'develop' | 'review' | 'gate'
-      title: string
-      spec: string
-      order: number
-    }>
-    edges: Array<{ source: string; target: string }>
-  }
-}
-
 const { data: projects, refresh } = await useFetch<Project[]>('/api/projects')
 
 const form = reactive({ name: '', goal: '' })
@@ -55,9 +38,6 @@ const saving = ref(false)
 const error = ref('')
 
 const workspaces = reactive<Record<number, WorkspaceInfo>>({})
-const plans = reactive<Record<number, PlanResult | undefined>>({})
-const planning = reactive<Record<number, boolean>>({})
-const planErrors = reactive<Record<number, string>>({})
 
 async function createProject() {
   error.value = ''
@@ -85,22 +65,6 @@ async function createProject() {
 
 async function loadWorkspace(id: number) {
   workspaces[id] = await $fetch<WorkspaceInfo>(`/api/projects/${id}/workspace`)
-}
-
-async function generatePlan(project: Project) {
-  planning[project.id] = true
-  planErrors[project.id] = ''
-  try {
-    plans[project.id] = await $fetch<PlanResult>(`/api/projects/${project.id}/plan`, {
-      method: 'POST',
-    })
-    await refresh()
-  } catch (e) {
-    const err = e as { data?: { statusMessage?: string }; message?: string }
-    planErrors[project.id] = err.data?.statusMessage || err.message || '规划失败'
-  } finally {
-    planning[project.id] = false
-  }
 }
 </script>
 
@@ -162,20 +126,7 @@ async function generatePlan(project: Project) {
               <button class="btn btn-xs btn-outline" @click="loadWorkspace(p.id)">
                 查看工作区
               </button>
-              <!-- TODO(cleanup): 早期调试入口，待删除（保留期间不要作为正式流程使用） -->
-              <button
-                class="btn btn-xs btn-outline"
-                :disabled="planning[p.id]"
-                @click="generatePlan(p)"
-              >
-                <span v-if="planning[p.id]" class="loading loading-spinner loading-xs" />
-                {{ planning[p.id] ? '规划中…' : '生成计划' }}
-              </button>
             </div>
-
-            <p v-if="planErrors[p.id]" class="text-error text-xs mt-2">
-              {{ planErrors[p.id] }}
-            </p>
 
             <div
               v-if="workspaces[p.id]"
@@ -189,23 +140,6 @@ async function generatePlan(project: Project) {
                 </ul>
               </template>
               <div v-else class="text-warning">工作区尚未初始化</div>
-            </div>
-
-            <div
-              v-if="plans[p.id]"
-              class="mt-2 text-xs bg-base-200 rounded-box p-3 space-y-1"
-            >
-              <div class="font-semibold">
-                计划 v{{ plans[p.id]?.planVersion }} ·
-                {{ plans[p.id]?.plan.nodes.length ?? 0 }} 个节点
-              </div>
-              <div class="opacity-70">{{ plans[p.id]?.plan.summary }}</div>
-              <details>
-                <summary class="cursor-pointer">查看计划 JSON</summary>
-                <pre class="mt-2 p-2 bg-base-100 rounded overflow-auto max-h-64">{{
-                  JSON.stringify(plans[p.id], null, 2)
-                }}</pre>
-              </details>
             </div>
           </li>
         </ul>

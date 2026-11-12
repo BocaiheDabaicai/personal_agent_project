@@ -170,9 +170,15 @@
 - `pnpm db:push` 首次失败（`data/` 不存在）；在 `drizzle.config.ts` 加载时自动创建 `data/` 后建库成功（projects / nodes / edges / decisions）
 - `pnpm tsx scripts/agent-hello.ts` 输出「正常 / [result] success」，本机 Agent SDK 通路可用
 - Step 8 浏览器验收通过：生成计划 → 点击节点查看详情 → 打回并填写原因 → 重新生成计划 → 批准；状态与决策记录均正常
-- UX 讨论：项目列表的「生成计划」与工作台重复，属 Step 7 调试入口；已在代码与 PROGRESS 标记待清理，暂不删除
+- UX 讨论：项目列表的「生成计划」与工作台重复，属 Step 7 调试入口；决定直接移除（见下一条）
 - 验证：http://localhost:3000 正常；数据写入本机 `data/app.db`
 - 下一步：Step 9 开发者 Agent + SSE 实时日志
+
+## 2026-11-12 · 移除列表页「生成计划」调试入口
+
+- 按用户要求直接移除 Step 7 遗留的列表快捷生成：按钮、计划 JSON 预览、PlanResult 类型、plans/planning/planErrors 状态与 generatePlan()
+- 列表操作收敛为「进入工作台」+「查看工作区」；生成与审批统一在工作台
+- 验证：首页 HTTP 200，代码无残留引用，列表不再显示「生成计划」
 
 ## 2026-11-11 · 今日暂停
 
