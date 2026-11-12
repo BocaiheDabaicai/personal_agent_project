@@ -180,6 +180,19 @@
 - 列表操作收敛为「进入工作台」+「查看工作区」；生成与审批统一在工作台
 - 验证：首页 HTTP 200，代码无残留引用，列表不再显示「生成计划」
 
+## 2026-11-12 · Step 9 开发者 Agent + SSE 实时日志
+
+- 新增 `server/agents/developer.ts`：开发者 Agent，工具 Read / Write / Edit / Glob / Grep / Bash，cwd 为项目工作区
+- 新增 `server/agents/developer-run.ts`：按 order 依次执行未完成的 develop 节点；节点状态 running / done / failed 入库；每个节点成功后自动 git commit
+- 新增 `server/utils/runManager.ts`：内存运行状态、事件缓冲与订阅
+- 新增接口：`POST /api/projects/:id/run`、`GET /api/projects/:id/run/status`、`GET /api/projects/:id/run/stream`
+- 工作台：计划批准后「开始开发」；实时日志面板展示文本、工具调用、工具结果、节点状态与错误；画布节点状态实时刷新；刷新后可重连并回放日志；中断后可继续
+- 冒烟测试：项目 1 v3 计划跑通，生成 `greet.js`（输出 Hello, Alice），自动提交 `e8b68db`，SSE 推送 20 条事件正常
+- 测试中修复：SSE 先 `push` 后 `send` 导致响应头超时；工具结果 ok 标记取反
+- 用户浏览器验收通过
+- 已知限制：运行事件仅保存在内存，开发服务器重启或 HMR 后日志丢失；节点状态与 git 提交不受影响
+- 下一步：Step 10 审查 Agent + 结构化裁决
+
 ## 2026-11-11 · 今日暂停
 
 - Step 8 代码完成：项目工作台、真实计划画布、计划审批与决策记录

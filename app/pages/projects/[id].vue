@@ -43,6 +43,32 @@ interface Decision {
   createdAt: string
 }
 
+interface RunEvent {
+  seq: number
+  ts: string
+  type: string
+  nodeKey?: string
+  title?: string
+  text?: string
+  name?: string
+  input?: string
+  output?: string
+  ok?: boolean
+  commit?: string
+  error?: string
+  status?: 'running' | 'done' | 'failed'
+}
+
+interface RunStatusResponse {
+  active: boolean
+  run: {
+    id: string
+    status: 'running' | 'done' | 'failed'
+    startedAt: string
+    finishedAt: string | null
+  } | null
+}
+
 const route = useRoute()
 const projectId = Number(route.params.id)
 
@@ -58,6 +84,10 @@ const planEdges = computed(() => plan.value?.edges ?? [])
 const hasPlan = computed(() => planNodes.value.length > 0)
 const planVersion = computed(() => plan.value?.planVersion ?? 0)
 const projectStatus = computed(() => project.value?.status ?? 'draft')
+const developNodes = computed(() => planNodes.value.filter(node => node.kind === 'develop'))
+const allDevelopDone = computed(
+  () => developNodes.value.length > 0 && developNodes.value.every(node => node.status === 'done'),
+)
 
 const selectedKey = ref<string | null>(null)
 const selectedNode = computed(
@@ -70,6 +100,33 @@ const planning = ref(false)
 const deciding = ref(false)
 const showReject = ref(false)
 const rejectComment = ref('')
+
+const startingRun = ref(false)
+const runActive = ref(false)
+const runState = ref<'idle' | 'running' | 'done' | 'failed'>('idle')
+const logs = ref<RunEvent[]>([])
+const logPanel = ref<HTMLElement | null>(null)
+const logError = ref('')
+let stream: EventSource | null = null
+
+const runStateLabel = computed(
+  () =>
+    ({
+      idle: '未开始',
+      running: '开发中',
+      done: '已完成',
+      failed: '失败',
+    })[runState.value],
+)
+const runStateBadge = computed(
+  () =>
+    ({
+      idle: 'badge-ghost',
+      running: 'badge-warning',
+      done: 'badge-success',
+      failed: 'badge-error',
+    })[runState.value],
+)
 
 const statusLabel: Record<string, string> = {
   draft: '草稿',
@@ -158,6 +215,179 @@ function rejectPlan() {
   submitDecision('reject', rejectComment.value.trim())
 }
 
+function timeLabel(ts: string): string {
+  const date = new Date(ts)
+  return Number.isNaN(date.getTime())
+    ? ''
+    : date.toLocaleTimeString('zh-CN', { hour12: false })
+}
+
+function logText(entry: RunEvent): string {
+  switch (entry.type) {
+    case 'run_start':
+      return entry.text || '开始执行计划'
+    case 'node_start':
+      return `▶ ${entry.title || entry.nodeKey || '节点'}`
+    case 'text':
+      return entry.text || ''
+    case 'tool_use':
+      return `→ ${entry.name || '工具'}${entry.input ? `：${entry.input}` : ''}`
+    case 'tool_result':
+      return `← ${entry.name || '工具'}${entry.ok === false ? '（失败）' : ''}${entry.output ? `：${entry.output}` : ''}`
+    case 'node_done':
+      return `✓ ${entry.title || entry.nodeKey || '节点'}${entry.commit ? ` · 提交 ${entry.commit}` : ' · 无文件变更'}`
+    case 'node_failed':
+      return `✗ ${entry.title || entry.nodeKey || '节点'}：${entry.error || '执行失败'}`
+    case 'run_done':
+      return entry.status === 'failed'
+        ? `执行失败：${entry.error || '未知错误'}`
+        : entry.text || '开发节点已完成，等待审查（Step 10）'
+    case 'error':
+      return `错误：${entry.error || '未知错误'}`
+    default:
+      return entry.text || ''
+  }
+}
+
+function logClass(entry: RunEvent): string {
+  if (
+    entry.type === 'error' ||
+    entry.type === 'node_failed' ||
+    (entry.type === 'run_done' && entry.status === 'failed')
+  ) {
+    return 'text-error'
+  }
+  if (entry.type === 'node_done' || (entry.type === 'run_done' && entry.status === 'done')) {
+    return 'text-success'
+  }
+  if (entry.type === 'node_start') {
+    return 'text-warning'
+  }
+  if (entry.type === 'tool_use') {
+    return 'text-info'
+  }
+  if (entry.type === 'tool_result') {
+    return entry.ok === false ? 'text-error' : 'text-success'
+  }
+  return 'opacity-80'
+}
+
+function closeStream() {
+  if (stream) {
+    stream.close()
+    stream = null
+  }
+}
+
+function handleRunEvent(entry: RunEvent) {
+  logs.value.push(entry)
+  if (logs.value.length > 1200) {
+    logs.value.splice(0, logs.value.length - 1200)
+  }
+
+  if (
+    entry.type === 'node_start' ||
+    entry.type === 'node_done' ||
+    entry.type === 'node_failed'
+  ) {
+    void refreshPlan()
+  }
+  if (entry.type === 'node_done' || entry.type === 'node_failed') {
+    void refreshProject()
+  }
+
+  if (entry.type === 'run_done') {
+    runActive.value = false
+    runState.value = entry.status === 'failed' ? 'failed' : 'done'
+    if (entry.status === 'failed') {
+      actionError.value = entry.error || '开发失败'
+      actionMessage.value = ''
+    } else {
+      actionError.value = ''
+      actionMessage.value = entry.text || '开发节点已完成，等待审查（Step 10）'
+    }
+    closeStream()
+    void refreshProject()
+    void refreshPlan()
+  }
+}
+
+function connectStream() {
+  closeStream()
+  logError.value = ''
+  stream = new EventSource(`/api/projects/${projectId}/run/stream`)
+  stream.onopen = () => {
+    logs.value = []
+    logError.value = ''
+  }
+  stream.onmessage = (event) => {
+    try {
+      const payload = JSON.parse(event.data) as { type?: string }
+      if (payload.type === 'ping') {
+        return
+      }
+      handleRunEvent(payload as RunEvent)
+    } catch {
+      // 忽略无法解析的事件
+    }
+  }
+  stream.onerror = () => {
+    if (runActive.value) {
+      logError.value = '日志连接中断，正在自动重连…'
+    }
+  }
+}
+
+async function startRun() {
+  startingRun.value = true
+  actionError.value = ''
+  actionMessage.value = ''
+  logError.value = ''
+  try {
+    await $fetch(`/api/projects/${projectId}/run`, { method: 'POST' })
+    logs.value = []
+    runActive.value = true
+    runState.value = 'running'
+    await refreshProject()
+    connectStream()
+  } catch (error) {
+    actionError.value = readError(error)
+    runActive.value = false
+    runState.value = 'idle'
+  } finally {
+    startingRun.value = false
+  }
+}
+
+onMounted(async () => {
+  if (projectStatus.value !== 'in_progress') {
+    return
+  }
+  try {
+    const status = await $fetch<RunStatusResponse>(`/api/projects/${projectId}/run/status`)
+    if (!status.run) {
+      return
+    }
+    runState.value = status.run.status
+    runActive.value = status.active
+    connectStream()
+  } catch {
+    // 运行状态不可用时保持页面其余功能可用
+  }
+})
+
+onUnmounted(closeStream)
+
+watch(
+  () => logs.value.length,
+  async () => {
+    await nextTick()
+    if (logPanel.value) {
+      logPanel.value.scrollTop = logPanel.value.scrollHeight
+    }
+  },
+)
+
 async function generatePlanAction() {
   planning.value = true
   actionError.value = ''
@@ -233,6 +463,42 @@ async function generatePlanAction() {
               >
                 还没有计划。在右侧点击「生成计划」，让规划 Agent 拆解任务。
               </div>
+
+              <div
+                v-if="logs.length || runActive"
+                class="mt-3 overflow-hidden rounded-box border border-base-300 bg-neutral text-neutral-content"
+              >
+                <div
+                  class="flex items-center justify-between gap-3 border-b border-white/10 px-3 py-2"
+                >
+                  <div class="flex items-center gap-2 text-xs font-medium">
+                    <span
+                      v-if="runActive"
+                      class="wb-pulse-dot inline-block h-1.5 w-1.5 rounded-full bg-warning"
+                    />
+                    实时日志
+                    <span v-if="logError" class="text-[11px] text-warning">{{ logError }}</span>
+                  </div>
+                  <span class="badge badge-xs" :class="runStateBadge">{{ runStateLabel }}</span>
+                </div>
+                <div
+                  ref="logPanel"
+                  class="max-h-56 overflow-y-auto p-3 font-mono text-[11px] leading-relaxed"
+                >
+                  <div v-if="!logs.length" class="opacity-50">等待事件…</div>
+                  <div
+                    v-for="entry in logs"
+                    :key="entry.seq"
+                    class="flex gap-2 py-0.5"
+                  >
+                    <span class="shrink-0 opacity-40">{{ timeLabel(entry.ts) }}</span>
+                    <span
+                      class="whitespace-pre-wrap break-words"
+                      :class="logClass(entry)"
+                    >{{ logText(entry) }}</span>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <aside class="space-y-4 border-t border-base-300 bg-base-100/60 p-4 xl:border-t-0 xl:border-l">
@@ -299,8 +565,39 @@ async function generatePlanAction() {
                 </template>
 
                 <template v-else-if="projectStatus === 'approved'">
-                  <div class="alert alert-success py-2 text-xs">
-                    计划已批准。开发执行将在 Step 9 接入。
+                  <p class="mb-2 text-xs opacity-60">
+                    计划已批准。开发者 Agent 会按节点执行，过程可在下方实时查看。
+                  </p>
+                  <button
+                    class="btn btn-sm btn-primary wb-press"
+                    :disabled="startingRun"
+                    @click="startRun"
+                  >
+                    <span v-if="startingRun" class="loading loading-spinner loading-xs" />
+                    开始开发
+                  </button>
+                </template>
+
+                <template v-else-if="projectStatus === 'in_progress'">
+                  <p v-if="runActive" class="mb-2 text-xs opacity-60">
+                    开发者 Agent 正在执行，实时日志见下方。
+                  </p>
+                  <div
+                    v-else-if="allDevelopDone || runState === 'done'"
+                    class="alert alert-success py-2 text-xs"
+                  >
+                    开发节点已完成，等待审查（Step 10）。
+                  </div>
+                  <div v-else class="space-y-2">
+                    <p class="text-xs opacity-60">还有开发节点未完成，可继续执行。</p>
+                    <button
+                      class="btn btn-sm btn-primary wb-press"
+                      :disabled="startingRun"
+                      @click="startRun"
+                    >
+                      <span v-if="startingRun" class="loading loading-spinner loading-xs" />
+                      继续开发
+                    </button>
                   </div>
                 </template>
 

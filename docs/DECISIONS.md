@@ -8,7 +8,7 @@ Nuxt 4 + TypeScript + Tailwind 4 + DaisyUI 5 + Vue Flow + SQLite（Drizzle + bet
 
 ## D-002 Agent 运行时（2026-11-11）
 
-使用 `@anthropic-ai/claude-agent-sdk`（TypeScript），封装为 `AgentRunner` 接口。
+使用 `@anthropic-ai/claude-agent-sdk`（TypeScript）。当前按场景拆分为 `server/agents/planner.ts`（规划）与 `server/agents/developer.ts`（开发）；通用 `AgentRunner` 抽象暂未提取，待 Step 10 审查 Agent 落地后视重复程度决定。
 
 理由：官方稳定、工具权限体系完整、可沿用现有模型链路。Step 5 最早验证；失败则回退 `claude -p` headless，DSH 适配器后置。
 
@@ -41,6 +41,12 @@ Nuxt 4 + TypeScript + Tailwind 4 + DaisyUI 5 + Vue Flow + SQLite（Drizzle + bet
 项目列表只负责浏览、状态展示与进入工作台；计划生成与审批统一在工作台完成。列表上的「生成计划」为 Step 7 调试遗留，已移除。
 
 原因：同一操作保留多个入口会导致流程断裂、误触模型调用，并增加选择负担。
+
+## D-009 开发运行与日志（2026-11-12）
+
+开发者 Agent 按 develop 节点逐个执行，节点状态写入数据库；每个节点成功后由平台自动 git commit。运行事件通过 SSE 实时推送，暂存在内存中，服务重启后丢失。
+
+原因：逐节点执行便于状态跟踪、失败重试和后续按节点审查；自动提交为审查 Agent 提供清晰 diff；日志持久化暂不必要，留待 Step 10/11 视需要再做。
 
 ## D-003 跨设备续作（2026-11-11）
 
