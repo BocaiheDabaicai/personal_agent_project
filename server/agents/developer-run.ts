@@ -85,7 +85,10 @@ async function executeRun(run: RunState, project: Project): Promise<void> {
         )
 
         const commit = commitNode(repoPath, node)
-        db.update(nodes).set({ status: 'done' }).where(eq(nodes.id, node.id)).run()
+        db.update(nodes)
+          .set({ status: 'done', commitHash: commit ?? node.commitHash })
+          .where(eq(nodes.id, node.id))
+          .run()
         emitRunEvent(run, {
           type: 'node_done',
           nodeKey: node.nodeKey,
@@ -116,7 +119,7 @@ async function executeRun(run: RunState, project: Project): Promise<void> {
 }
 
 export function startDevelopmentRun(project: Project): RunState {
-  const run = createRun(project.id)
+  const run = createRun(project.id, 'develop')
   emitRunEvent(run, {
     type: 'run_start',
     text: `开始执行计划 v${project.currentPlanVersion}`,

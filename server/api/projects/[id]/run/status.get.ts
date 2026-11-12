@@ -23,6 +23,7 @@ export default defineEventHandler((event) => {
     active: run.status === 'running',
     run: {
       id: run.id,
+      kind: run.kind,
       status: run.status,
       startedAt: run.startedAt,
       finishedAt: run.finishedAt ?? null,

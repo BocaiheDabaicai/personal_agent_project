@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 
 export type RunStatus = 'running' | 'done' | 'failed'
+export type RunKind = 'develop' | 'review'
 
 export type RunEventType =
   | 'run_start'
@@ -29,11 +30,13 @@ export interface RunEvent {
   commit?: string
   error?: string
   status?: RunStatus
+  verdict?: 'pass' | 'fail'
 }
 
 export interface RunState {
   id: string
   projectId: number
+  kind: RunKind
   status: RunStatus
   events: RunEvent[]
   subscribers: Set<(event: RunEvent) => void>
@@ -48,10 +51,11 @@ const globalForRuns = globalThis as typeof globalThis & {
 
 const runs = (globalForRuns.__personalAgentRuns ??= new Map<number, RunState>())
 
-export function createRun(projectId: number): RunState {
+export function createRun(projectId: number, kind: RunKind): RunState {
   const run: RunState = {
     id: randomUUID(),
     projectId,
+    kind,
     status: 'running',
     events: [],
     subscribers: new Set(),

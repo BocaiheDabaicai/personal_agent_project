@@ -193,6 +193,19 @@
 - 已知限制：运行事件仅保存在内存，开发服务器重启或 HMR 后日志丢失；节点状态与 git 提交不受影响
 - 下一步：Step 10 审查 Agent + 结构化裁决
 
+## 2026-11-12 · Step 10 审查 Agent + 结构化裁决
+
+- 新增 `shared/schemas/review.ts`：verdict / summary / issues 契约；未通过时至少列出一个问题
+- `nodes` 增加 `commit_hash`；新增 `reviews` 表并 `db:push` 同步
+- 新增 `server/agents/reviewer.ts`：按 review 节点审查对应 develop 节点的提交，写 `.agent/reviews/<节点>.json`，Zod 校验失败重试一次
+- 新增 `server/agents/review-run.ts`：逐个审查节点执行，结论写入 `reviews` 表，节点状态 done / failed，项目状态 reviewed / review_failed
+- 新增接口 `POST /api/projects/:id/review`、`GET /api/projects/:id/reviews`；run/status 返回运行类型
+- 工作台：开发完成后「开始审查」；审查日志；「审查结果」面板展示结论、摘要、问题、文件与行号；画布 review 节点同步状态
+- 抽取 `server/agents/agent-stream.ts`，开发者与审查 Agent 共用 SDK 消息解析
+- 冒烟测试：项目 1 v3 审查通过，提交 `e8b68db`，SSE 26 条事件，review 记录入库，项目状态 reviewed；`pnpm build` 通过
+- 用户浏览器验收通过；本次冒烟为 pass，fail 分支逻辑已实现，将在 Step 11 迭代时实际触发
+- 下一步：Step 11 迭代闭环 + 收尾
+
 ## 2026-11-11 · 今日暂停
 
 - Step 8 代码完成：项目工作台、真实计划画布、计划审批与决策记录

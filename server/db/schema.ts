@@ -23,6 +23,7 @@ export const nodes = sqliteTable('nodes', {
   order: integer('node_order').notNull(),
   x: integer('x').notNull().default(0),
   y: integer('y').notNull().default(0),
+  commitHash: text('commit_hash'),
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
 })
 
@@ -32,6 +33,20 @@ export const edges = sqliteTable('edges', {
   planVersion: integer('plan_version').notNull(),
   sourceKey: text('source_key').notNull(),
   targetKey: text('target_key').notNull(),
+})
+
+export const reviews = sqliteTable('reviews', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  projectId: integer('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  planVersion: integer('plan_version').notNull(),
+  reviewNodeKey: text('review_node_key').notNull(),
+  developNodeKey: text('develop_node_key').notNull(),
+  commitHash: text('commit_hash'),
+  verdict: text('verdict').notNull(),
+  summary: text('summary').notNull(),
+  issues: text('issues').notNull(),
+  runId: text('run_id'),
+  createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
 })
 
 export const decisions = sqliteTable('decisions', {
@@ -48,4 +63,5 @@ export type Project = typeof projects.$inferSelect
 export type NewProject = typeof projects.$inferInsert
 export type PlanNodeRow = typeof nodes.$inferSelect
 export type PlanEdgeRow = typeof edges.$inferSelect
+export type ReviewRow = typeof reviews.$inferSelect
 export type DecisionRow = typeof decisions.$inferSelect

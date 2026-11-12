@@ -57,16 +57,36 @@ interface RunEvent {
   commit?: string
   error?: string
   status?: 'running' | 'done' | 'failed'
+  verdict?: 'pass' | 'fail'
 }
 
 interface RunStatusResponse {
   active: boolean
   run: {
     id: string
+    kind: 'develop' | 'review'
     status: 'running' | 'done' | 'failed'
     startedAt: string
     finishedAt: string | null
   } | null
+}
+
+interface ReviewIssue {
+  severity: 'blocker' | 'major' | 'minor'
+  message: string
+  file?: string
+  line?: number
+}
+
+interface Review {
+  id: number
+  reviewNodeKey: string
+  developNodeKey: string
+  commitHash: string | null
+  verdict: 'pass' | 'fail'
+  summary: string
+  issues: ReviewIssue[]
+  createdAt: string
 }
 
 const route = useRoute()
@@ -76,6 +96,9 @@ const { data: project, refresh: refreshProject } = await useFetch<Project>(`/api
 const { data: plan, refresh: refreshPlan } = await useFetch<PlanResponse>(`/api/projects/${projectId}/plan`)
 const { data: decisionList, refresh: refreshDecisions } = await useFetch<Decision[]>(
   `/api/projects/${projectId}/decisions`,
+)
+const { data: reviewList, refresh: refreshReviews } = await useFetch<Review[]>(
+  `/api/projects/${projectId}/reviews`,
 )
 const { data: allProjects } = await useFetch<Project[]>('/api/projects')
 
@@ -88,6 +111,16 @@ const developNodes = computed(() => planNodes.value.filter(node => node.kind ===
 const allDevelopDone = computed(
   () => developNodes.value.length > 0 && developNodes.value.every(node => node.status === 'done'),
 )
+const latestReviews = computed(() => {
+  const seen = new Set<string>()
+  return (reviewList.value ?? []).filter(review => {
+    if (seen.has(review.reviewNodeKey)) {
+      return false
+    }
+    seen.add(review.reviewNodeKey)
+    return true
+  })
+})
 
 const selectedKey = ref<string | null>(null)
 const selectedNode = computed(
@@ -103,21 +136,23 @@ const rejectComment = ref('')
 
 const startingRun = ref(false)
 const runActive = ref(false)
+const runKind = ref<'develop' | 'review'>('develop')
 const runState = ref<'idle' | 'running' | 'done' | 'failed'>('idle')
 const logs = ref<RunEvent[]>([])
 const logPanel = ref<HTMLElement | null>(null)
 const logError = ref('')
 let stream: EventSource | null = null
 
-const runStateLabel = computed(
-  () =>
-    ({
-      idle: '未开始',
-      running: '开发中',
-      done: '已完成',
-      failed: '失败',
-    })[runState.value],
-)
+const runStateLabel = computed(() => {
+  if (runState.value === 'running') {
+    return runKind.value === 'review' ? '审查中' : '开发中'
+  }
+  return {
+    idle: '未开始',
+    done: '已完成',
+    failed: '失败',
+  }[runState.value]
+})
 const runStateBadge = computed(
   () =>
     ({
@@ -134,6 +169,8 @@ const statusLabel: Record<string, string> = {
   approved: '已批准',
   plan_rejected: '已打回',
   in_progress: '进行中',
+  reviewed: '审查通过',
+  review_failed: '审查未通过',
   done: '已完成',
 }
 const statusBadge: Record<string, string> = {
@@ -142,6 +179,8 @@ const statusBadge: Record<string, string> = {
   approved: 'badge-success',
   plan_rejected: 'badge-error',
   in_progress: 'badge-warning',
+  reviewed: 'badge-success',
+  review_failed: 'badge-error',
   done: 'badge-success',
 }
 const kindLabel: Record<string, string> = {
@@ -173,9 +212,18 @@ const decisionBadge: Record<string, string> = {
   reject: 'badge-error',
   changes: 'badge-warning',
 }
+const severityLabel: Record<string, string> = {
+  blocker: '阻塞',
+  major: '主要',
+  minor: '次要',
+}
 
 function selectNode(payload: { nodeKey: string }) {
   selectedKey.value = payload.nodeKey
+}
+
+function nodeTitle(nodeKey: string): string {
+  return planNodes.value.find(node => node.nodeKey === nodeKey)?.title || nodeKey
 }
 
 function readError(error: unknown): string {
@@ -295,20 +343,26 @@ function handleRunEvent(entry: RunEvent) {
   if (entry.type === 'node_done' || entry.type === 'node_failed') {
     void refreshProject()
   }
+  if (entry.type === 'node_done' && entry.verdict) {
+    void refreshReviews()
+  }
 
   if (entry.type === 'run_done') {
     runActive.value = false
     runState.value = entry.status === 'failed' ? 'failed' : 'done'
     if (entry.status === 'failed') {
-      actionError.value = entry.error || '开发失败'
+      actionError.value = entry.error || '执行失败'
       actionMessage.value = ''
     } else {
       actionError.value = ''
-      actionMessage.value = entry.text || '开发节点已完成，等待审查（Step 10）'
+      actionMessage.value = entry.text || '执行完成'
     }
     closeStream()
     void refreshProject()
     void refreshPlan()
+    if (runKind.value === 'review') {
+      void refreshReviews()
+    }
   }
 }
 
@@ -338,16 +392,17 @@ function connectStream() {
   }
 }
 
-async function startRun() {
+async function launchRun(path: 'run' | 'review', kind: 'develop' | 'review') {
   startingRun.value = true
   actionError.value = ''
   actionMessage.value = ''
   logError.value = ''
   try {
-    await $fetch(`/api/projects/${projectId}/run`, { method: 'POST' })
+    await $fetch(`/api/projects/${projectId}/${path}`, { method: 'POST' })
     logs.value = []
     runActive.value = true
     runState.value = 'running'
+    runKind.value = kind
     await refreshProject()
     connectStream()
   } catch (error) {
@@ -359,8 +414,16 @@ async function startRun() {
   }
 }
 
+function startRun() {
+  return launchRun('run', 'develop')
+}
+
+function startReview() {
+  return launchRun('review', 'review')
+}
+
 onMounted(async () => {
-  if (projectStatus.value !== 'in_progress') {
+  if (!['in_progress', 'reviewed', 'review_failed'].includes(projectStatus.value)) {
     return
   }
   try {
@@ -370,6 +433,7 @@ onMounted(async () => {
     }
     runState.value = status.run.status
     runActive.value = status.active
+    runKind.value = status.run.kind
     connectStream()
   } catch {
     // 运行状态不可用时保持页面其余功能可用
@@ -476,7 +540,7 @@ async function generatePlanAction() {
                       v-if="runActive"
                       class="wb-pulse-dot inline-block h-1.5 w-1.5 rounded-full bg-warning"
                     />
-                    实时日志
+                    {{ runKind === 'review' ? '审查日志' : '实时日志' }}
                     <span v-if="logError" class="text-[11px] text-warning">{{ logError }}</span>
                   </div>
                   <span class="badge badge-xs" :class="runStateBadge">{{ runStateLabel }}</span>
@@ -580,14 +644,23 @@ async function generatePlanAction() {
 
                 <template v-else-if="projectStatus === 'in_progress'">
                   <p v-if="runActive" class="mb-2 text-xs opacity-60">
-                    开发者 Agent 正在执行，实时日志见下方。
+                    {{
+                      runKind === 'review'
+                        ? '审查 Agent 正在执行，实时日志见下方。'
+                        : '开发者 Agent 正在执行，实时日志见下方。'
+                    }}
                   </p>
-                  <div
-                    v-else-if="allDevelopDone || runState === 'done'"
-                    class="alert alert-success py-2 text-xs"
-                  >
-                    开发节点已完成，等待审查（Step 10）。
-                  </div>
+                  <template v-else-if="allDevelopDone || runState === 'done'">
+                    <p class="mb-2 text-xs opacity-60">开发节点已完成，可以开始审查。</p>
+                    <button
+                      class="btn btn-sm btn-primary wb-press"
+                      :disabled="startingRun"
+                      @click="startReview"
+                    >
+                      <span v-if="startingRun" class="loading loading-spinner loading-xs" />
+                      开始审查
+                    </button>
+                  </template>
                   <div v-else class="space-y-2">
                     <p class="text-xs opacity-60">还有开发节点未完成，可继续执行。</p>
                     <button
@@ -598,6 +671,18 @@ async function generatePlanAction() {
                       <span v-if="startingRun" class="loading loading-spinner loading-xs" />
                       继续开发
                     </button>
+                  </div>
+                </template>
+
+                <template v-else-if="projectStatus === 'reviewed'">
+                  <div class="alert alert-success py-2 text-xs">
+                    审查通过，等待人工验收（Step 11）。
+                  </div>
+                </template>
+
+                <template v-else-if="projectStatus === 'review_failed'">
+                  <div class="alert alert-error py-2 text-xs">
+                    审查未通过，请查看下方审查结果；修复与迭代将在 Step 11 接入。
                   </div>
                 </template>
 
@@ -625,6 +710,40 @@ async function generatePlanAction() {
                     生成计划
                   </button>
                 </template>
+              </section>
+
+              <section v-if="latestReviews.length" class="border-t border-base-300 pt-3">
+                <div class="mb-2 text-[11px] uppercase tracking-wider opacity-50">审查结果</div>
+                <ul class="space-y-3">
+                  <li v-for="review in latestReviews" :key="review.id" class="text-xs">
+                    <div class="flex flex-wrap items-center gap-2">
+                      <span
+                        class="badge badge-xs"
+                        :class="review.verdict === 'pass' ? 'badge-success' : 'badge-error'"
+                      >
+                        {{ review.verdict === 'pass' ? '通过' : '未通过' }}
+                      </span>
+                      <span class="font-medium">{{ nodeTitle(review.developNodeKey) }}</span>
+                      <span class="opacity-50">{{ review.createdAt }}</span>
+                    </div>
+                    <p class="mt-1 opacity-70">{{ review.summary }}</p>
+                    <ul v-if="review.issues.length" class="mt-1 space-y-1">
+                      <li
+                        v-for="(issue, index) in review.issues"
+                        :key="index"
+                        class="opacity-70"
+                      >
+                        <span class="badge badge-xs badge-outline">
+                          {{ severityLabel[issue.severity] || issue.severity }}
+                        </span>
+                        <span class="ml-1">{{ issue.message }}</span>
+                        <span v-if="issue.file" class="opacity-50">
+                          （{{ issue.file }}<span v-if="issue.line">:{{ issue.line }}</span>）
+                        </span>
+                      </li>
+                    </ul>
+                  </li>
+                </ul>
               </section>
 
               <section v-if="decisionList?.length" class="border-t border-base-300 pt-3">
