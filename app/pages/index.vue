@@ -31,6 +31,8 @@ const statusBadge: Record<string, string> = {
   done: 'badge-success',
 }
 
+// TODO(cleanup): 「生成计划」是 Step 7 的早期调试入口，Step 8 工作台已接管计划生成与审批。
+// 后续删除时一并移除：PlanResult、plans/planning/planErrors、generatePlan()、按钮与计划 JSON 预览。
 interface PlanResult {
   planVersion: number
   plan: {
@@ -160,6 +162,7 @@ async function generatePlan(project: Project) {
               <button class="btn btn-xs btn-outline" @click="loadWorkspace(p.id)">
                 查看工作区
               </button>
+              <!-- TODO(cleanup): 早期调试入口，待删除（保留期间不要作为正式流程使用） -->
               <button
                 class="btn btn-xs btn-outline"
                 :disabled="planning[p.id]"
