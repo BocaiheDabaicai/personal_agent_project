@@ -1,6 +1,7 @@
 import { and, eq, sql } from 'drizzle-orm'
 import { generatePlan } from '../../../agents/planner'
 import { edges, nodes, projects } from '../../../db/schema'
+import { recordPlanRecalls } from '../../../memory/service'
 import { db } from '../../../utils/db'
 import { getRun } from '../../../utils/runManager'
 import { ensureWorkspace } from '../../../utils/workspace'
@@ -32,9 +33,10 @@ export default defineEventHandler(async (event) => {
 
   const repoPath = ensureWorkspace(projectId)
 
-  let plan
+  let plan: Awaited<ReturnType<typeof generatePlan>>['plan']
+  let recalled: Awaited<ReturnType<typeof generatePlan>>['recalled'] = []
   try {
-    plan = await generatePlan(
+    const generated = await generatePlan(
       {
         id: project.id,
         name: project.name,
@@ -44,6 +46,8 @@ export default defineEventHandler(async (event) => {
       },
       feedback,
     )
+    plan = generated.plan
+    recalled = generated.recalled
   } catch (error) {
     throw createError({
       statusCode: 502,
@@ -106,5 +110,11 @@ export default defineEventHandler(async (event) => {
       .run()
   })
 
-  return { planVersion, plan }
+  try {
+    recordPlanRecalls(projectId, planVersion, recalled)
+  } catch (error) {
+    console.error('[plan] 无法记录记忆召回：', error)
+  }
+
+  return { planVersion, plan, recalledMemories: recalled }
 })

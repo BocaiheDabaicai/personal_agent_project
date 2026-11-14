@@ -107,3 +107,9 @@ Nuxt 4 + TypeScript + Tailwind 4 + DaisyUI 5 + Vue Flow + SQLite（Drizzle + bet
 `image.generate` 作为首个真实能力，provider 为 `dreamina-cli`：进程内 MCP `generate_image`，默认 Seedream 4.6 / 2K / 单张；单次报价上限 5 积分、单节点最多 4 次；每个项目映射一个即梦画布；产物下载到项目 `artifacts/`。Ark API 保留为后续备选 provider。
 
 理由：用户已有即梦账号与积分，官方 CLI/Skill 可直接本地调用，无需额外 API Key；能力层保持可替换。风险：依赖本机 CLI 登录与外部画布/积分，暂无运行级总预算；模型与内容策略由即梦服务端决定。
+
+## D-019 记忆链 v1（2026-11-14）
+
+记忆以 SQLite `memories` / `plan_recalls` 保存；审查结束、人工决策、项目完成时确定性蒸馏为情节/程序记忆；规划前按目标与反馈做关键词+标签召回（最多 5 条），记录到 `plan_recalls` 并在审批页展示。记忆支持手动新建、编辑、置顶、删除。暂不引入向量库、LLM Curator 或全局记忆页面。
+
+理由：先验证“跨项目召回是否真的有用”，保持透明、可编辑、可审计；向量检索与管家 Agent 后置。风险：关键词召回可能漏掉语义相近但措辞不同的记忆；自动标签依赖模板；手动全局记忆仍挂在项目上，删除项目会级联删除。

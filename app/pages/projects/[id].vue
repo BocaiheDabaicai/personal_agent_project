@@ -83,10 +83,27 @@ interface PlanEdgeRow {
   targetKey: string
 }
 
+interface MemoryEntry {
+  id: number
+  projectId: number | null
+  scope: string
+  kind: string
+  title: string
+  content: string
+  tags: string[]
+  source: Record<string, unknown>
+  sourceKey: string | null
+  pinned: boolean
+  createdAt: string
+  updatedAt: string
+  score?: number
+}
+
 interface PlanResponse {
   planVersion: number
   nodes: PlanNodeRow[]
   edges: PlanEdgeRow[]
+  recalledMemories: MemoryEntry[]
 }
 
 interface Decision {
@@ -155,6 +172,9 @@ const { data: decisionList, refresh: refreshDecisions } = await useFetch<Decisio
 )
 const { data: reviewList, refresh: refreshReviews } = await useFetch<Review[]>(
   `/api/projects/${projectId}/reviews`,
+)
+const { data: memoryList, refresh: refreshMemories } = await useFetch<MemoryEntry[]>(
+  `/api/projects/${projectId}/memories`,
 )
 const { data: allProjects } = await useFetch<Project[]>('/api/projects')
 const { data: capabilityList, refresh: refreshCapabilities } = await useFetch<CapabilitiesResponse>(
@@ -338,6 +358,132 @@ const severityLabel: Record<string, string> = {
   major: '主要',
   minor: '次要',
 }
+const memoryKindLabel: Record<string, string> = {
+  episodic: '情节',
+  semantic: '语义',
+  procedural: '程序',
+}
+const memoryKindBadge: Record<string, string> = {
+  episodic: 'badge-info',
+  semantic: 'badge-success',
+  procedural: 'badge-warning',
+}
+
+const memoryFormOpen = ref(false)
+const memoryEditingId = ref<number | null>(null)
+const memorySaving = ref(false)
+const memoryError = ref('')
+const memoryForm = reactive({
+  kind: 'semantic' as 'episodic' | 'semantic' | 'procedural',
+  title: '',
+  content: '',
+  tags: '',
+})
+
+const recalledMemories = computed(() => plan.value?.recalledMemories ?? [])
+
+function memorySourceLabel(memory: MemoryEntry): string {
+  const type = typeof memory.source?.type === 'string' ? memory.source.type : ''
+  const labels: Record<string, string> = {
+    review_run: '审查',
+    decision: '人工决策',
+    project_done: '项目完成',
+    manual: '手动',
+  }
+  return labels[type] || type || '记忆'
+}
+
+function openMemoryForm(memory?: MemoryEntry): void {
+  memoryError.value = ''
+  if (memory) {
+    memoryEditingId.value = memory.id
+    memoryForm.kind =
+      memory.kind === 'episodic' || memory.kind === 'procedural' ? memory.kind : 'semantic'
+    memoryForm.title = memory.title
+    memoryForm.content = memory.content
+    memoryForm.tags = memory.tags.join(', ')
+  } else {
+    memoryEditingId.value = null
+    memoryForm.kind = 'semantic'
+    memoryForm.title = ''
+    memoryForm.content = ''
+    memoryForm.tags = ''
+  }
+  memoryFormOpen.value = true
+}
+
+function closeMemoryForm(): void {
+  memoryFormOpen.value = false
+  memoryEditingId.value = null
+  memoryError.value = ''
+}
+
+async function saveMemory(): Promise<void> {
+  memoryError.value = ''
+  if (!memoryForm.title.trim() || !memoryForm.content.trim()) {
+    memoryError.value = '标题和内容不能为空'
+    return
+  }
+
+  memorySaving.value = true
+  try {
+    const tags = memoryForm.tags
+      .split(/[,，]/)
+      .map(tag => tag.trim())
+      .filter(Boolean)
+    if (memoryEditingId.value !== null) {
+      await $fetch(`/api/memories/${memoryEditingId.value}`, {
+        method: 'PATCH',
+        body: {
+          kind: memoryForm.kind,
+          title: memoryForm.title.trim(),
+          content: memoryForm.content.trim(),
+          tags,
+        },
+      })
+    } else {
+      await $fetch(`/api/projects/${projectId}/memories`, {
+        method: 'POST',
+        body: {
+          kind: memoryForm.kind,
+          title: memoryForm.title.trim(),
+          content: memoryForm.content.trim(),
+          tags,
+        },
+      })
+    }
+    await refreshMemories()
+    closeMemoryForm()
+  } catch (error) {
+    memoryError.value = readError(error)
+  } finally {
+    memorySaving.value = false
+  }
+}
+
+async function toggleMemoryPin(memory: MemoryEntry): Promise<void> {
+  try {
+    await $fetch(`/api/memories/${memory.id}`, {
+      method: 'PATCH',
+      body: { pinned: !memory.pinned },
+    })
+    await refreshMemories()
+  } catch (error) {
+    actionError.value = readError(error)
+  }
+}
+
+async function deleteMemoryEntry(memory: MemoryEntry): Promise<void> {
+  if (!window.confirm(`删除记忆「${memory.title}」？`)) {
+    return
+  }
+  try {
+    await $fetch(`/api/memories/${memory.id}`, { method: 'DELETE' })
+    await refreshMemories()
+  } catch (error) {
+    actionError.value = readError(error)
+  }
+}
 
 function selectNode(payload: { nodeKey: string }) {
   selectedKey.value = payload.nodeKey
@@ -386,7 +532,7 @@ async function submitDecision(decision: 'approve' | 'reject', comment?: string) 
       method: 'POST',
       body: { gate: 'plan', decision, comment },
     })
-    await Promise.all([refreshProject(), refreshDecisions()])
+    await Promise.all([refreshProject(), refreshDecisions(), refreshMemories()])
     actionMessage.value = decision === 'approve' ? '计划已批准' : '计划已打回'
     showReject.value = false
     rejectComment.value = ''
@@ -418,7 +564,12 @@ async function submitAcceptance(decision: 'approve' | 'reject', comment?: string
       method: 'POST',
       body: { gate: 'task', decision, comment },
     })
-    await Promise.all([refreshProject(), refreshDecisions(), refreshPlan()])
+    await Promise.all([
+      refreshProject(),
+      refreshDecisions(),
+      refreshPlan(),
+      refreshMemories(),
+    ])
     actionMessage.value = decision === 'approve' ? '项目已完成' : '已打回，待重新规划'
     showAcceptReject.value = false
     acceptRejectComment.value = ''
@@ -568,6 +719,7 @@ function handleRunEvent(entry: RunEvent) {
     void refreshPlan()
     if (runKind.value === 'review') {
       void refreshReviews()
+      void refreshMemories()
     }
   }
 }
@@ -939,6 +1091,29 @@ async function generatePlanAction(feedback = '') {
                   >
                     计划需要以下能力，但当前不可用：{{ missingCapabilities.join('、') }}。请先配置能力，或打回后重新规划。
                   </div>
+                  <details
+                    v-if="recalledMemories.length"
+                    class="mb-2 rounded-box border border-base-300 bg-base-200/40 p-2"
+                  >
+                    <summary class="cursor-pointer text-xs opacity-70">
+                      本次参考了 {{ recalledMemories.length }} 条记忆
+                    </summary>
+                    <ul class="mt-1 space-y-2 text-[11px]">
+                      <li v-for="memory in recalledMemories" :key="memory.id">
+                        <div class="flex flex-wrap items-center gap-1">
+                          <span
+                            class="badge badge-xs"
+                            :class="memoryKindBadge[memory.kind] || 'badge-ghost'"
+                          >
+                            {{ memoryKindLabel[memory.kind] || memory.kind }}
+                          </span>
+                          <span class="font-medium">{{ memory.title }}</span>
+                        </div>
+                        <p class="mt-1 whitespace-pre-wrap opacity-60">{{ memory.content }}</p>
+                      </li>
+                    </ul>
+                  </details>
+                  <p v-else class="mb-2 text-xs opacity-50">本次计划没有参考历史记忆。</p>
                   <div class="flex gap-2">
                     <button
                       class="btn btn-sm btn-success wb-press"
@@ -1159,6 +1334,107 @@ async function generatePlanAction(feedback = '') {
                       {{ cap.reason }}
                     </p>
                     <p v-else class="mt-1 text-[11px] opacity-50">{{ cap.description }}</p>
+                  </li>
+                </ul>
+              </section>
+
+              <section class="border-t border-base-300 pt-3">
+                <div class="mb-2 flex items-center justify-between">
+                  <div class="text-[11px] uppercase tracking-wider opacity-50">记忆</div>
+                  <button class="btn btn-xs btn-ghost" @click="openMemoryForm()">新建</button>
+                </div>
+
+                <div
+                  v-if="memoryFormOpen"
+                  class="mb-2 space-y-1 rounded-box border border-base-300 bg-base-200/40 p-2"
+                >
+                  <select
+                    v-model="memoryForm.kind"
+                    class="select select-bordered select-xs w-full"
+                    :disabled="memoryEditingId !== null"
+                  >
+                    <option value="semantic">语义记忆</option>
+                    <option value="procedural">程序记忆</option>
+                    <option value="episodic">情节记忆</option>
+                  </select>
+                  <input
+                    v-model="memoryForm.title"
+                    class="input input-bordered input-xs w-full"
+                    placeholder="标题"
+                  />
+                  <textarea
+                    v-model="memoryForm.content"
+                    class="textarea textarea-bordered textarea-xs w-full"
+                    rows="3"
+                    placeholder="内容"
+                  />
+                  <input
+                    v-model="memoryForm.tags"
+                    class="input input-bordered input-xs w-full"
+                    placeholder="标签，用逗号分隔"
+                  />
+                  <p v-if="memoryError" class="text-[11px] text-error">{{ memoryError }}</p>
+                  <div class="flex justify-end gap-1">
+                    <button class="btn btn-xs btn-ghost" @click="closeMemoryForm">取消</button>
+                    <button
+                      class="btn btn-xs btn-primary"
+                      :disabled="memorySaving"
+                      @click="saveMemory"
+                    >
+                      <span v-if="memorySaving" class="loading loading-spinner loading-xs" />
+                      保存
+                    </button>
+                  </div>
+                </div>
+
+                <div v-if="!memoryList?.length" class="text-xs opacity-50">还没有记忆。</div>
+                <ul v-else class="max-h-80 space-y-2 overflow-y-auto pr-1">
+                  <li
+                    v-for="memory in memoryList"
+                    :key="memory.id"
+                    class="rounded-box border border-base-300 p-2 text-xs"
+                  >
+                    <div class="flex flex-wrap items-center gap-1">
+                      <span
+                        class="badge badge-xs"
+                        :class="memoryKindBadge[memory.kind] || 'badge-ghost'"
+                      >
+                        {{ memoryKindLabel[memory.kind] || memory.kind }}
+                      </span>
+                      <span v-if="memory.pinned" class="badge badge-xs badge-warning">置顶</span>
+                      <span class="font-medium">{{ memory.title }}</span>
+                    </div>
+                    <p class="mt-1 line-clamp-3 whitespace-pre-wrap opacity-70">
+                      {{ memory.content }}
+                    </p>
+                    <div v-if="memory.tags.length" class="mt-1 flex flex-wrap gap-1">
+                      <span
+                        v-for="tag in memory.tags"
+                        :key="tag"
+                        class="badge badge-xs badge-outline"
+                      >
+                        {{ tag }}
+                      </span>
+                    </div>
+                    <div class="mt-1 flex items-center justify-between gap-2">
+                      <span class="text-[10px] opacity-40">
+                        {{ memorySourceLabel(memory) }} · {{ memory.createdAt }}
+                      </span>
+                      <div class="flex gap-1">
+                        <button class="btn btn-xs btn-ghost" @click="toggleMemoryPin(memory)">
+                          {{ memory.pinned ? '取消置顶' : '置顶' }}
+                        </button>
+                        <button class="btn btn-xs btn-ghost" @click="openMemoryForm(memory)">
+                          编辑
+                        </button>
+                        <button
+                          class="btn btn-xs btn-ghost text-error"
+                          @click="deleteMemoryEntry(memory)"
+                        >
+                          删除
+                        </button>
+                      </div>
+                    </div>
                   </li>
                 </ul>
               </section>

@@ -1,5 +1,6 @@
 import { and, eq, sql } from 'drizzle-orm'
 import { decisions, nodes, projects } from '../../../db/schema'
+import { distillDecisionMemory, distillProceduralMemory } from '../../../memory/service'
 import { db } from '../../../utils/db'
 
 const GATES = new Set(['plan', 'task', 'iteration'])
@@ -59,8 +60,8 @@ export default defineEventHandler(async (event) => {
       throw createError({ statusCode: 400, statusMessage: '找不到人工验收节点' })
     }
 
-    return db.transaction((tx) => {
-      const row = tx
+    const row = db.transaction((tx) => {
+      const created = tx
         .insert(decisions)
         .values({
           projectId,
@@ -85,8 +86,19 @@ export default defineEventHandler(async (event) => {
         .where(eq(projects.id, projectId))
         .run()
 
-      return row
+      return created
     })
+
+    try {
+      distillDecisionMemory(projectId, row.id)
+      if (decision === 'approve') {
+        distillProceduralMemory(projectId)
+      }
+    } catch (error) {
+      console.error('[decisions] 无法生成人工验收记忆：', error)
+    }
+
+    return row
   }
 
   const row = db
@@ -108,6 +120,12 @@ export default defineEventHandler(async (event) => {
       .set({ status, updatedAt: sql`(datetime('now'))` })
       .where(eq(projects.id, projectId))
       .run()
+  }
+
+  try {
+    distillDecisionMemory(projectId, row.id)
+  } catch (error) {
+    console.error('[decisions] 无法生成决策记忆：', error)
   }
 
   return row

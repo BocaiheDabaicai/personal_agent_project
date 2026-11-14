@@ -1,6 +1,7 @@
 import { and, eq, sql } from 'drizzle-orm'
 import { edges, nodes, projects, reviews, type Project } from '../db/schema'
 import { db } from '../utils/db'
+import { distillReviewMemory } from '../memory/service'
 import { ensureWorkspace, git } from '../utils/workspace'
 import { createRun, emitRunEvent, finishRun, type RunState } from '../utils/runManager'
 import { reviewDevelopNode } from './reviewer'
@@ -231,6 +232,12 @@ async function executeReviewRun(run: RunState, project: Project): Promise<void> 
       })
       .where(eq(projects.id, project.id))
       .run()
+
+    try {
+      distillReviewMemory(project.id, run.id)
+    } catch (error) {
+      console.error('[review] 无法生成审查记忆：', error)
+    }
 
     finishRun(
       run,

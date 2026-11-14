@@ -1,5 +1,6 @@
 import { and, eq } from 'drizzle-orm'
 import { edges, nodes, projects } from '../../../db/schema'
+import { getPlanRecalls } from '../../../memory/service'
 import { db } from '../../../utils/db'
 
 export default defineEventHandler((event) => {
@@ -14,7 +15,7 @@ export default defineEventHandler((event) => {
   }
 
   if (project.currentPlanVersion === 0) {
-    return { planVersion: 0, nodes: [], edges: [] }
+    return { planVersion: 0, nodes: [], edges: [], recalledMemories: [] }
   }
 
   const nodeRows = db
@@ -30,5 +31,12 @@ export default defineEventHandler((event) => {
     .where(and(eq(edges.projectId, projectId), eq(edges.planVersion, project.currentPlanVersion)))
     .all()
 
-  return { planVersion: project.currentPlanVersion, nodes: nodeRows, edges: edgeRows }
+  const recalledMemories = getPlanRecalls(projectId, project.currentPlanVersion)
+
+  return {
+    planVersion: project.currentPlanVersion,
+    nodes: nodeRows,
+    edges: edgeRows,
+    recalledMemories,
+  }
 })

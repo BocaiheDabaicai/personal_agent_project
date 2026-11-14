@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm'
-import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
+import { index, integer, real, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
 export const projects = sqliteTable('projects', {
   id: integer('id').primaryKey({ autoIncrement: true }),
@@ -62,6 +62,53 @@ export const decisions = sqliteTable('decisions', {
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
 })
 
+export const memories = sqliteTable(
+  'memories',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    projectId: integer('project_id').references(() => projects.id, { onDelete: 'cascade' }),
+    scope: text('scope').notNull().default('project'),
+    kind: text('kind').notNull(),
+    title: text('title').notNull(),
+    content: text('content').notNull(),
+    tags: text('tags').notNull().default('[]'),
+    source: text('source').notNull().default('{}'),
+    sourceKey: text('source_key'),
+    pinned: integer('pinned').notNull().default(0),
+    createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+    updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
+  },
+  table => [
+    uniqueIndex('memories_source_key_unique').on(table.sourceKey),
+    index('memories_project_id_idx').on(table.projectId),
+    index('memories_kind_idx').on(table.kind),
+  ],
+)
+
+export const planRecalls = sqliteTable(
+  'plan_recalls',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    projectId: integer('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    planVersion: integer('plan_version').notNull(),
+    memoryId: integer('memory_id')
+      .notNull()
+      .references(() => memories.id, { onDelete: 'cascade' }),
+    score: real('score').notNull().default(0),
+    createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+  },
+  table => [
+    uniqueIndex('plan_recalls_project_version_memory_unique').on(
+      table.projectId,
+      table.planVersion,
+      table.memoryId,
+    ),
+    index('plan_recalls_project_version_idx').on(table.projectId, table.planVersion),
+  ],
+)
+
 export const projectCanvases = sqliteTable(
   'project_canvases',
   {
@@ -118,3 +165,5 @@ export type DecisionRow = typeof decisions.$inferSelect
 export type RunRow = typeof runs.$inferSelect
 export type RunEventRow = typeof runEvents.$inferSelect
 export type ProjectCanvasRow = typeof projectCanvases.$inferSelect
+export type MemoryRow = typeof memories.$inferSelect
+export type PlanRecallRow = typeof planRecalls.$inferSelect
