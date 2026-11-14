@@ -56,7 +56,7 @@ interface RunEvent {
   ok?: boolean
   commit?: string
   error?: string
-  status?: 'running' | 'done' | 'failed'
+  status?: 'running' | 'done' | 'failed' | 'cancelled'
   verdict?: 'pass' | 'fail'
 }
 
@@ -65,9 +65,11 @@ interface RunStatusResponse {
   run: {
     id: string
     kind: 'develop' | 'review'
-    status: 'running' | 'done' | 'failed'
+    status: 'running' | 'done' | 'failed' | 'cancelled'
     startedAt: string
     finishedAt: string | null
+    error?: string | null
+    eventCount?: number
   } | null
 }
 
@@ -137,9 +139,10 @@ const showAcceptReject = ref(false)
 const acceptRejectComment = ref('')
 
 const startingRun = ref(false)
+const cancelling = ref(false)
 const runActive = ref(false)
 const runKind = ref<'develop' | 'review'>('develop')
-const runState = ref<'idle' | 'running' | 'done' | 'failed'>('idle')
+const runState = ref<'idle' | 'running' | 'done' | 'failed' | 'cancelled'>('idle')
 const logs = ref<RunEvent[]>([])
 const logPanel = ref<HTMLElement | null>(null)
 const logError = ref('')
@@ -153,6 +156,7 @@ const runStateLabel = computed(() => {
     idle: '未开始',
     done: '已完成',
     failed: '失败',
+    cancelled: '已取消',
   }[runState.value]
 })
 const runStateBadge = computed(
@@ -162,6 +166,7 @@ const runStateBadge = computed(
       running: 'badge-warning',
       done: 'badge-success',
       failed: 'badge-error',
+      cancelled: 'badge-ghost',
     })[runState.value],
 )
 
@@ -348,9 +353,13 @@ function logText(entry: RunEvent): string {
     case 'node_failed':
       return `✗ ${entry.title || entry.nodeKey || '节点'}：${entry.error || '执行失败'}`
     case 'run_done':
-      return entry.status === 'failed'
-        ? `执行失败：${entry.error || '未知错误'}`
-        : entry.text || '开发节点已完成，等待审查（Step 10）'
+      if (entry.status === 'failed') {
+        return `执行失败：${entry.error || '未知错误'}`
+      }
+      if (entry.status === 'cancelled') {
+        return entry.text || '运行已取消'
+      }
+      return entry.text || '开发节点已完成，等待审查（Step 10）'
     case 'error':
       return `错误：${entry.error || '未知错误'}`
     default:
@@ -368,6 +377,9 @@ function logClass(entry: RunEvent): string {
   }
   if (entry.type === 'node_done' || (entry.type === 'run_done' && entry.status === 'done')) {
     return 'text-success'
+  }
+  if (entry.type === 'run_done' && entry.status === 'cancelled') {
+    return 'text-warning'
   }
   if (entry.type === 'node_start') {
     return 'text-warning'
@@ -410,10 +422,18 @@ function handleRunEvent(entry: RunEvent) {
 
   if (entry.type === 'run_done') {
     runActive.value = false
-    runState.value = entry.status === 'failed' ? 'failed' : 'done'
+    runState.value =
+      entry.status === 'failed'
+        ? 'failed'
+        : entry.status === 'cancelled'
+          ? 'cancelled'
+          : 'done'
     if (entry.status === 'failed') {
       actionError.value = entry.error || '执行失败'
       actionMessage.value = ''
+    } else if (entry.status === 'cancelled') {
+      actionError.value = ''
+      actionMessage.value = entry.text || '运行已取消'
     } else {
       actionError.value = ''
       actionMessage.value = entry.text || '执行完成'
@@ -483,10 +503,23 @@ function startReview() {
   return launchRun('review', 'review')
 }
 
-onMounted(async () => {
-  if (!['in_progress', 'reviewed', 'review_failed'].includes(projectStatus.value)) {
-    return
+async function cancelRun() {
+  cancelling.value = true
+  actionError.value = ''
+  try {
+    await $fetch(`/api/projects/${projectId}/run/cancel`, { method: 'POST' })
+    if (runState.value !== 'cancelled') {
+      actionMessage.value = '已请求停止运行'
+    }
+    await Promise.all([refreshProject(), refreshPlan()])
+  } catch (error) {
+    actionError.value = readError(error)
+  } finally {
+    cancelling.value = false
   }
+}
+
+onMounted(async () => {
   try {
     const status = await $fetch<RunStatusResponse>(`/api/projects/${projectId}/run/status`)
     if (!status.run) {
@@ -609,10 +642,21 @@ async function generatePlanAction(feedback = '') {
                       v-if="runActive"
                       class="wb-pulse-dot inline-block h-1.5 w-1.5 rounded-full bg-warning"
                     />
-                    {{ runKind === 'review' ? '审查日志' : '实时日志' }}
+                    {{ runKind === 'review' ? '审查日志' : '运行日志' }}
                     <span v-if="logError" class="text-[11px] text-warning">{{ logError }}</span>
                   </div>
-                  <span class="badge badge-xs" :class="runStateBadge">{{ runStateLabel }}</span>
+                  <div class="flex items-center gap-2">
+                    <button
+                      v-if="runActive"
+                      class="btn btn-xs btn-ghost text-error"
+                      :disabled="cancelling"
+                      @click="cancelRun"
+                    >
+                      <span v-if="cancelling" class="loading loading-spinner loading-xs" />
+                      停止运行
+                    </button>
+                    <span class="badge badge-xs" :class="runStateBadge">{{ runStateLabel }}</span>
+                  </div>
                 </div>
                 <div
                   ref="logPanel"
@@ -852,7 +896,7 @@ async function generatePlanAction(feedback = '') {
                   <button
                     class="btn btn-sm btn-primary wb-press"
                     :disabled="planning"
-                    @click="generatePlanAction"
+                    @click="generatePlanAction()"
                   >
                     <span v-if="planning" class="loading loading-spinner loading-xs" />
                     生成计划

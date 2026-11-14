@@ -71,3 +71,27 @@ Nuxt 4 + TypeScript + Tailwind 4 + DaisyUI 5 + Vue Flow + SQLite（Drizzle + bet
 开发进度与决策写入仓库文档（CLAUDE.md + docs/），随 git 同步；平台运行数据（`data/`、`workspaces/`）与 `.env` 不入库。
 
 理由：用户在公司和家里两台电脑之间开发，需要拉下代码即可接着做；运行数据是本机的，不跨机器。
+
+## D-013 组件级组合与唯一内核（2026-11-14）
+
+默认通过 MCP / HTTP / CLI 组合外部能力；库级复用正常；只有“没有稳定接口 + 是核心缺口 + 愿意长期维护”时才 fork 代码。项目状态、运行账本、审批与记忆链只存在本平台 SQLite，外部组件不得持有项目状态。
+
+理由：避免多个 Agent 平台各自维护状态与记忆导致分叉；用生态能力补齐工具/渠道/沙箱，把精力留给项目治理与记忆链。
+
+## D-014 单机内核 + 多客户端，Web-first（2026-11-14）
+
+产品形态采用“一个 Agent Host + 多个薄客户端”：Host 拥有 SQLite、工作区、运行引擎、调度与能力层；客户端为 Web/PWA/桌面壳/移动端。第一阶段 Web-only，随后加后台 daemon + PWA；桌面壳（Tauri/Electron）后置；移动端只做客户端，不在手机上运行 Agent。Windows Host 需先验证 WSL2/Git Bash 下的 Agent 运行时。
+
+理由：本地优先与持久化运行要求 Host 常驻；单 Host 避免多主同步；Web-first 迭代最快，原生壳只是分发与系统集成层。
+
+## D-015 记忆链先自建，外部记忆后置（2026-11-14）
+
+记忆链先以 SQLite 事件日志 + 蒸馏条目 + FTS 实现，保留 provenance、可编辑与 scope；Letta / Mem0 / Zep·Graphiti / MemOS 等作为后续可选适配器，不能成为唯一副本。
+
+理由：双记忆系统会带来同步与一致性问题；先验证召回质量与用户价值，再决定是否引入向量/图数据库。
+
+## D-016 运行账本持久化与取消语义（2026-11-14）
+
+`runs` / `run_events` 写入 SQLite，作为运行的事实源；内存只保留活跃运行与实时订阅。取消通过 `AbortController` 贯穿 Agent SDK：先把 running 节点退回 pending，再记录 `run_done(cancelled)`，使运行可继续。服务启动时把遗留 running 运行标记 failed、running 节点回 pending，并补 `run_done`。运行结束后忽略迟到的 Agent 事件。
+
+理由：重启/断线后仍可回放与审计；取消不丢节点状态；避免 SDK abort 缓冲污染日志。已知代价：取消后 Agent 子进程可能短暂继续，事件已被丢弃；运行账本暂未做归档。

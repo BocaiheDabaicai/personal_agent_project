@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm'
-import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
 export const projects = sqliteTable('projects', {
   id: integer('id').primaryKey({ autoIncrement: true }),
@@ -59,9 +59,41 @@ export const decisions = sqliteTable('decisions', {
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
 })
 
+export const runs = sqliteTable('runs', {
+  id: text('id').primaryKey(),
+  projectId: integer('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  kind: text('kind').notNull(),
+  status: text('status').notNull().default('running'),
+  startedAt: text('started_at').notNull(),
+  finishedAt: text('finished_at'),
+  error: text('error'),
+})
+
+export const runEvents = sqliteTable(
+  'run_events',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    runId: text('run_id').notNull().references(() => runs.id, { onDelete: 'cascade' }),
+    projectId: integer('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    seq: integer('seq').notNull(),
+    ts: text('ts').notNull(),
+    type: text('type').notNull(),
+    payload: text('payload').notNull(),
+  },
+  table => [
+    uniqueIndex('run_events_run_id_seq_unique').on(table.runId, table.seq),
+    index('run_events_project_id_idx').on(table.projectId),
+    index('run_events_run_id_idx').on(table.runId),
+  ],
+)
+
 export type Project = typeof projects.$inferSelect
 export type NewProject = typeof projects.$inferInsert
 export type PlanNodeRow = typeof nodes.$inferSelect
 export type PlanEdgeRow = typeof edges.$inferSelect
 export type ReviewRow = typeof reviews.$inferSelect
 export type DecisionRow = typeof decisions.$inferSelect
+export type RunRow = typeof runs.$inferSelect
+export type RunEventRow = typeof runEvents.$inferSelect

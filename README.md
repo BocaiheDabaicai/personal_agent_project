@@ -6,7 +6,8 @@
 
 - 创建项目，自动初始化独立 git 工作区
 - 规划 Agent 生成结构化计划，Vue Flow 画布展示并人工审批
-- 开发者 Agent 按节点实现，SSE 实时日志，节点完成后自动提交
+- 开发者 Agent 按节点实现，SSE 实时日志，节点完成后自动提交；运行记录持久化，刷新/重启可回放
+- 可随时停止开发/审查，未完成节点回到待处理，之后可继续
 - 审查 Agent 按开发节点的 git 提交审查，输出结构化裁决与问题列表
 - 人工验收：批准完成，或打回并填写原因
 - 迭代闭环：审查未通过或人工打回后，带反馈重新规划，生成新计划版本继续执行
@@ -56,5 +57,7 @@ pnpm dev
 - [开发进度](docs/PROGRESS.md)
 - [开发日志](docs/JOURNAL.md)
 - [决策记录](docs/DECISIONS.md)
+- [架构与产品形态](docs/ARCHITECTURE.md)
+- [组件级组合与能力接入](docs/INTEGRATION.md)
 
 > 换电脑继续开发：先读 `CLAUDE.md`，再按 `docs/PROGRESS.md` 的「当前步骤」继续。

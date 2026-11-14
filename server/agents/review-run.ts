@@ -145,7 +145,13 @@ async function executeReviewRun(run: RunState, project: Project): Promise<void> 
               emitRunEvent(run, { type: 'tool_result', name, output, ok })
             },
           },
+          run.abortController,
         )
+
+        if (run.status !== 'running') {
+          db.update(nodes).set({ status: 'pending' }).where(eq(nodes.id, reviewNode.id)).run()
+          return
+        }
 
         db.insert(reviews)
           .values({
@@ -178,6 +184,10 @@ async function executeReviewRun(run: RunState, project: Project): Promise<void> 
           text: `${review.verdict === 'pass' ? '通过' : '未通过'}：${review.summary}`,
         })
       } catch (error) {
+        if (run.status === 'cancelled') {
+          db.update(nodes).set({ status: 'pending' }).where(eq(nodes.id, reviewNode.id)).run()
+          return
+        }
         const message = errorMessage(error)
         db.update(nodes).set({ status: 'failed' }).where(eq(nodes.id, reviewNode.id)).run()
         emitRunEvent(run, {
@@ -211,6 +221,9 @@ async function executeReviewRun(run: RunState, project: Project): Promise<void> 
         : '审查未通过，需修复后迭代（Step 11）',
     )
   } catch (error) {
+    if (run.status === 'cancelled') {
+      return
+    }
     const message = errorMessage(error)
     emitRunEvent(run, { type: 'error', error: message })
     finishRun(run, 'failed', message)

@@ -223,3 +223,32 @@
 - UI 最终方向：DaisyUI 默认主题（light/dark）+ 中性/主色骨架 + 通知/成功/警告/失败语义色（见 DECISIONS D-006、D-007）
 - 待办：在工作台验证节点点击与批准/打回 → 验收 Step 8 → 进入 Step 9（开发者 Agent + SSE）
 - 注意：`data/app.db` 与 `workspaces/` 仅本机存在；换电脑后需重新创建项目并生成计划
+
+## 2026-11-14 · 生成计划回归修复 + 架构规划
+
+- 修复工作台「生成计划」按钮回归：`@click="generatePlanAction"` 未加括号，点击事件被当作 `feedback` 传给服务端，`body.feedback.trim()` 抛 TypeError（500）。改为显式调用，并在 `plan.post.ts` 增加非字符串防御
+- 验证：用原错误请求形态 `{"feedback":{}}` 调用返回 200；项目 3「画哆啦A梦」生成计划 v1（2 开发 + 2 审查 + 1 验收），状态 `planned`
+- 与用户讨论产品愿景：本地优先的个人 Agent 运行时、记忆链、多 Agent 团队、持久化/可中断运行、组件级组合
+- 新增 `docs/ARCHITECTURE.md`：定位、生命周期、五层架构、内核/客户端分离、Web/PWA/桌面/移动演进、Windows/macOS 约束、Step 12–17 路线图
+- 新增 `docs/INTEGRATION.md`：组件级组合原则、Capability/Skill/Agent Profile 模型、能力注册表、MCP client、参考产品与 POC 验收标准
+- 产品形态结论：Web-first；单 Host + 多客户端；PWA 优先于原生移动端；Windows Host 需先做 WSL2/Git Bash spike
+- 下一步：Step 12 持久化运行内核（runs / run_events、取消/恢复、日志回放、孤儿运行处理）
+
+## 2026-11-14 · Step 12 持久化运行内核（实现，待验收）
+
+- 新增 `runs` / `run_events` 表（`pnpm db:push` 已同步）；`runManager` 双写内存与 SQLite
+- SSE 改为从数据库回放事件；内存仅保留活跃运行与订阅，刷新/重启后仍能看到历史日志
+- 新增 `POST /api/projects/:id/run/cancel`；`AbortController` 贯穿 Agent SDK，取消时先把 running 节点退回 pending，再记录 `run_done(cancelled)`
+- 启动时 reconciler：遗留 `running` 运行标记为 failed、running 节点回 pending，并补一条 run_done 事件
+- 运行结束后丢弃 Agent SDK 迟到的缓冲事件，避免取消后日志继续增长
+- 工作台：日志面板增加「停止运行」；新增 `cancelled` 状态、取消后继续开发/审查
+- 验证：合成冒烟（重启 reconcile、取消、DB 回放）+ 真实 Agent 冒烟（启动 → 取消 → 继续开发完成并提交 `hi.js` → 审查通过）；临时项目/脚本已清理；`pnpm build` 通过
+- 待浏览器验收：停止按钮、取消后继续、刷新/重启后的日志回放
+- 下一步：验收后进入 Step 13 验收契约与确定性验证
+
+## 2026-11-14 · Step 12 完成
+
+- 用户已在浏览器验收通过：停止运行、取消后继续、刷新回放均正常
+- 更新 `docs/PROGRESS.md`：Step 12 勾选，当前步骤推进到 Step 13
+- 提交并推送 Step 12 代码、架构/集成规划文档与生成计划回归修复
+- 下一步：Step 13 验收契约与确定性验证

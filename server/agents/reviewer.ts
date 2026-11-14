@@ -97,6 +97,7 @@ async function runReviewer(
   context: ReviewerContext,
   previousError: string,
   callbacks: ReviewerCallbacks,
+  abortController?: AbortController,
 ): Promise<void> {
   const stream = query({
     prompt: buildPrompt(context, previousError),
@@ -106,6 +107,7 @@ async function runReviewer(
       allowedTools: ['Read', 'Glob', 'Grep', 'Bash', 'Write'],
       permissionMode: 'acceptEdits',
       maxTurns: 16,
+      abortController,
       env: {
         ...process.env,
         CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
@@ -119,6 +121,7 @@ async function runReviewer(
 export async function reviewDevelopNode(
   context: ReviewerContext,
   callbacks: ReviewerCallbacks,
+  abortController?: AbortController,
 ): Promise<Review> {
   const reviewPath = join(context.repoPath, reviewRelativePath(context.reviewNode.nodeKey))
   mkdirSync(dirname(reviewPath), { recursive: true })
@@ -129,7 +132,7 @@ export async function reviewDevelopNode(
     rmSync(reviewPath, { force: true })
 
     try {
-      await runReviewer(context, lastError, callbacks)
+      await runReviewer(context, lastError, callbacks, abortController)
     } catch (error) {
       lastError = formatReviewError(error)
       continue

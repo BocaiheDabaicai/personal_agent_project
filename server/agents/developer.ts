@@ -49,6 +49,7 @@ ${context.planSummary}
 export async function runDeveloperNode(
   context: DeveloperContext,
   callbacks: DeveloperCallbacks,
+  abortController?: AbortController,
 ): Promise<void> {
   const stream = query({
     prompt: buildPrompt(context),
@@ -58,6 +59,7 @@ export async function runDeveloperNode(
       allowedTools: ['Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash'],
       permissionMode: 'acceptEdits',
       maxTurns: 24,
+      abortController,
       env: {
         ...process.env,
         CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',

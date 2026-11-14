@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { projects } from '../../../../db/schema'
 import { db } from '../../../../utils/db'
-import { getRun } from '../../../../utils/runManager'
+import { getLatestRun, getRun } from '../../../../utils/runManager'
 
 export default defineEventHandler((event) => {
   const projectId = Number(getRouterParam(event, 'id'))
@@ -14,20 +14,37 @@ export default defineEventHandler((event) => {
     throw createError({ statusCode: 404, statusMessage: '项目不存在' })
   }
 
-  const run = getRun(projectId)
-  if (!run) {
+  const liveRun = getRun(projectId)
+  if (liveRun) {
+    return {
+      active: liveRun.status === 'running',
+      run: {
+        id: liveRun.id,
+        kind: liveRun.kind,
+        status: liveRun.status,
+        startedAt: liveRun.startedAt,
+        finishedAt: liveRun.finishedAt ?? null,
+        error: liveRun.error ?? null,
+        eventCount: liveRun.nextSeq - 1,
+      },
+    }
+  }
+
+  const latest = getLatestRun(projectId)
+  if (!latest) {
     return { active: false, run: null }
   }
 
   return {
-    active: run.status === 'running',
+    active: latest.status === 'running',
     run: {
-      id: run.id,
-      kind: run.kind,
-      status: run.status,
-      startedAt: run.startedAt,
-      finishedAt: run.finishedAt ?? null,
-      eventCount: run.events.length,
+      id: latest.id,
+      kind: latest.kind,
+      status: latest.status,
+      startedAt: latest.startedAt,
+      finishedAt: latest.finishedAt,
+      error: latest.error,
+      eventCount: latest.eventCount,
     },
   }
 })

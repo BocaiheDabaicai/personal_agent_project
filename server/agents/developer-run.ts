@@ -82,7 +82,13 @@ async function executeRun(run: RunState, project: Project): Promise<void> {
               emitRunEvent(run, { type: 'tool_result', name, output, ok })
             },
           },
+          run.abortController,
         )
+
+        if (run.status !== 'running') {
+          db.update(nodes).set({ status: 'pending' }).where(eq(nodes.id, node.id)).run()
+          return
+        }
 
         const commit = commitNode(repoPath, node)
         db.update(nodes)
@@ -97,6 +103,10 @@ async function executeRun(run: RunState, project: Project): Promise<void> {
           text: `完成：${node.title}`,
         })
       } catch (error) {
+        if (run.status === 'cancelled') {
+          db.update(nodes).set({ status: 'pending' }).where(eq(nodes.id, node.id)).run()
+          return
+        }
         const message = errorMessage(error)
         db.update(nodes).set({ status: 'failed' }).where(eq(nodes.id, node.id)).run()
         emitRunEvent(run, {
@@ -112,6 +122,9 @@ async function executeRun(run: RunState, project: Project): Promise<void> {
 
     finishRun(run, 'done', '开发节点已完成，等待审查（Step 10）')
   } catch (error) {
+    if (run.status === 'cancelled') {
+      return
+    }
     const message = errorMessage(error)
     emitRunEvent(run, { type: 'error', error: message })
     finishRun(run, 'failed', message)

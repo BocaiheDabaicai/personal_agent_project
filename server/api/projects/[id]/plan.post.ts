@@ -21,13 +21,14 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 409, statusMessage: '已有任务在运行，不能生成计划' })
   }
 
-  let body: { feedback?: string } = {}
+  let body: { feedback?: unknown } = {}
   try {
-    body = (await readBody<{ feedback?: string }>(event)) ?? {}
+    body = (await readBody<{ feedback?: unknown }>(event)) ?? {}
   } catch {
     body = {}
   }
-  const feedback = (body.feedback ?? '').trim().slice(0, 4000)
+  const feedback =
+    typeof body.feedback === 'string' ? body.feedback.trim().slice(0, 4000) : ''
 
   const repoPath = ensureWorkspace(projectId)
 
