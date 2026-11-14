@@ -21,6 +21,7 @@ export const nodes = sqliteTable('nodes', {
   spec: text('spec').notNull(),
   verification: text('verification'),
   verificationResult: text('verification_result'),
+  requires: text('requires'),
   status: text('status').notNull().default('pending'),
   order: integer('node_order').notNull(),
   x: integer('x').notNull().default(0),
@@ -61,6 +62,23 @@ export const decisions = sqliteTable('decisions', {
   createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
 })
 
+export const projectCanvases = sqliteTable(
+  'project_canvases',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    projectId: integer('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    provider: text('provider').notNull(),
+    canvasId: text('canvas_id').notNull(),
+    webUrl: text('web_url'),
+    createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+  },
+  table => [
+    uniqueIndex('project_canvases_project_provider_unique').on(table.projectId, table.provider),
+  ],
+)
+
 export const runs = sqliteTable('runs', {
   id: text('id').primaryKey(),
   projectId: integer('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
@@ -99,3 +117,4 @@ export type ReviewRow = typeof reviews.$inferSelect
 export type DecisionRow = typeof decisions.$inferSelect
 export type RunRow = typeof runs.$inferSelect
 export type RunEventRow = typeof runEvents.$inferSelect
+export type ProjectCanvasRow = typeof projectCanvases.$inferSelect

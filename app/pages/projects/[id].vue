@@ -19,6 +19,7 @@ interface PlanNodeRow {
   spec: string
   verification: string | null
   verificationResult: string | null
+  requires: string | null
   status: string
   x: number
   y: number
@@ -53,6 +54,27 @@ interface VerificationResult {
   checks: VerificationCheck[]
   output?: string
   ranAt?: string
+}
+
+interface CapabilityInfo {
+  id: string
+  title: string
+  description: string
+  kind: string
+  provider: string
+  available: boolean
+  reason?: string
+  cost?: {
+    unit: string
+    estimate: number
+    maxPerCall: number
+    maxCallsPerNode?: number
+  }
+  models?: string[]
+}
+
+interface CapabilitiesResponse {
+  capabilities: CapabilityInfo[]
 }
 
 interface PlanEdgeRow {
@@ -135,6 +157,9 @@ const { data: reviewList, refresh: refreshReviews } = await useFetch<Review[]>(
   `/api/projects/${projectId}/reviews`,
 )
 const { data: allProjects } = await useFetch<Project[]>('/api/projects')
+const { data: capabilityList, refresh: refreshCapabilities } = await useFetch<CapabilitiesResponse>(
+  '/api/capabilities',
+)
 
 const planNodes = computed(() => plan.value?.nodes ?? [])
 const planEdges = computed(() => plan.value?.edges ?? [])
@@ -196,6 +221,24 @@ const selectedVerificationResult = computed<VerificationResult | null>(() => {
 
 const developNodesWithoutVerification = computed(
   () => developNodes.value.filter(node => !node.verification).length,
+)
+
+function parseRequires(raw: string | null | undefined): string[] {
+  const parsed = parseJson<unknown>(raw)
+  return Array.isArray(parsed)
+    ? parsed.filter((id): id is string => typeof id === 'string' && id.length > 0)
+    : []
+}
+
+const capabilityById = computed(
+  () => new Map((capabilityList.value?.capabilities ?? []).map(capability => [capability.id, capability])),
+)
+const selectedRequires = computed(() => parseRequires(selectedNode.value?.requires))
+const requiredCapabilityIds = computed(() => [
+  ...new Set(planNodes.value.flatMap(node => parseRequires(node.requires))),
+])
+const missingCapabilities = computed(() =>
+  requiredCapabilityIds.value.filter(id => !capabilityById.value.get(id)?.available),
 )
 
 const actionError = ref('')
@@ -857,6 +900,18 @@ async function generatePlanAction(feedback = '') {
                       </details>
                     </div>
                   </div>
+
+                  <div v-if="selectedRequires.length" class="mt-2 flex flex-wrap items-center gap-1">
+                    <span class="text-[11px] opacity-50">需要能力</span>
+                    <span
+                      v-for="id in selectedRequires"
+                      :key="id"
+                      class="badge badge-xs"
+                      :class="capabilityById.get(id)?.available ? 'badge-success' : 'badge-error'"
+                    >
+                      {{ id }}
+                    </span>
+                  </div>
                 </template>
                 <div v-else class="text-xs opacity-60">点击画布中的节点查看详情。</div>
               </section>
@@ -875,10 +930,19 @@ async function generatePlanAction(feedback = '') {
                   >
                     有 {{ developNodesWithoutVerification }} 个开发节点没有验收契约，本次会跳过确定性验证。建议打回后重新生成计划。
                   </div>
+                  <p v-if="requiredCapabilityIds.length" class="mb-2 text-xs opacity-60">
+                    需要能力：{{ requiredCapabilityIds.join('、') }}
+                  </p>
+                  <div
+                    v-if="missingCapabilities.length"
+                    class="alert alert-error mb-2 py-2 text-xs"
+                  >
+                    计划需要以下能力，但当前不可用：{{ missingCapabilities.join('、') }}。请先配置能力，或打回后重新规划。
+                  </div>
                   <div class="flex gap-2">
                     <button
                       class="btn btn-sm btn-success wb-press"
-                      :disabled="deciding"
+                      :disabled="deciding || missingCapabilities.length > 0"
                       @click="approvePlan"
                     >
                       <span v-if="deciding" class="loading loading-spinner loading-xs" />
@@ -1070,6 +1134,33 @@ async function generatePlanAction(feedback = '') {
                     生成计划
                   </button>
                 </template>
+              </section>
+
+              <section class="border-t border-base-300 pt-3">
+                <div class="mb-2 flex items-center justify-between">
+                  <div class="text-[11px] uppercase tracking-wider opacity-50">能力</div>
+                  <button class="btn btn-xs btn-ghost" @click="refreshCapabilities()">
+                    刷新
+                  </button>
+                </div>
+                <ul class="space-y-2 text-xs">
+                  <li v-for="cap in capabilityList?.capabilities" :key="cap.id">
+                    <div class="flex flex-wrap items-center gap-2">
+                      <span
+                        class="badge badge-xs"
+                        :class="cap.available ? 'badge-success' : 'badge-error'"
+                      >
+                        {{ cap.available ? '可用' : '不可用' }}
+                      </span>
+                      <span class="font-medium">{{ cap.title }}</span>
+                      <span class="opacity-50">{{ cap.id }}</span>
+                    </div>
+                    <p v-if="!cap.available" class="mt-1 text-[11px] text-error">
+                      {{ cap.reason }}
+                    </p>
+                    <p v-else class="mt-1 text-[11px] opacity-50">{{ cap.description }}</p>
+                  </li>
+                </ul>
               </section>
 
               <section v-if="latestReviews.length" class="border-t border-base-300 pt-3">

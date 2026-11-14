@@ -8,6 +8,7 @@
 - 规划 Agent 生成结构化计划，Vue Flow 画布展示并人工审批
 - 开发者 Agent 按节点实现，SSE 实时日志，节点完成后自动提交；运行记录持久化，刷新/重启可回放
 - 每个开发节点带验收契约（命令 / 退出码 / 输出 / 产物），平台先跑确定性检查，通过才提交
+- 图片生成：接入即梦 Dreamina CLI（默认 Seedream 4.6 / 2K），需本机安装并登录；单次最多 5 积分，单节点最多 4 次
 - 可随时停止开发/审查，未完成节点回到待处理，之后可继续
 - 审查 Agent 按开发节点的 git 提交审查，输出结构化裁决与问题列表
 - 人工验收：批准完成，或打回并填写原因
@@ -32,6 +33,8 @@ pnpm dev
 打开 http://localhost:3000
 
 运行 Agent 需要本机 Claude Code 已登录。规划、开发、审查 Agent 均在服务端通过 Claude Agent SDK 调用，并关闭非必要流量（见 `docs/DECISIONS.md` D-004）。
+
+图片生成还需要本机安装 Dreamina CLI 并登录（默认路径 `~/.local/bin/dreamina-canvas`）。可选环境变量：`DREAMINA_CANVAS_BIN`、`DREAMINA_IMAGE_MODEL`、`DREAMINA_IMAGE_RESOLUTION`、`DREAMINA_IMAGE_MAX_CREDITS`、`DREAMINA_IMAGE_MAX_PER_NODE`。
 
 ## 使用流程
 

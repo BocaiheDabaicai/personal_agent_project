@@ -73,6 +73,7 @@ export default defineEventHandler(async (event) => {
             title: node.title,
             spec: node.spec,
             verification: node.verification ? JSON.stringify(node.verification) : null,
+            requires: JSON.stringify(node.requires ?? []),
             order: node.order,
             status: 'pending',
             x: 80 + index * 280,

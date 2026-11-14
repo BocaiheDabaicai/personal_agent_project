@@ -89,6 +89,7 @@ async function executeRun(run: RunState, project: Project): Promise<void> {
       try {
         await runDeveloperNode(
           {
+            projectId: project.id,
             projectName: project.name,
             goal: project.goal,
             planSummary: planOutline,

@@ -265,6 +265,27 @@
 - 待浏览器验收：计划审批页的契约展示、运行日志的验收事件、节点详情的通过/失败结果
 - 下一步：验收后进入 Step 14 能力注册表 + MCP 最小接入
 
+## 2026-11-14 · Step 14 能力注册表 + 即梦图片 MCP（实现，待验收）
+
+- 安装并验证即梦 Dreamina CLI 1.3.0 + Skill；登录账号 `xhsndl`（VIP），完成一张 2K 测试图（1 积分）并下载校验
+- 新增 `server/capabilities/registry.ts`：`image.generate`、CLI/登录健康检查、默认模型/分辨率、单次 5 积分、单节点最多 4 次
+- 新增 `GET /api/capabilities`；工作台展示能力状态，计划 `requires` 有缺口时禁止批准
+- `shared/schemas/plan.ts` 增加 `requires`；规划 Agent prompt 注入能力目录，图片节点写 `requires: ["image.generate"]`
+- 新增 `server/capabilities/image-tool.ts`：进程内 MCP `generate_image`；项目画布映射；保存/报价/限额/运行/等待/下载；覆盖安全
+- 开发者 Agent 接入 `mcp__platform__generate_image`，prompt 要求图片任务必须用工具，不能手写占位图
+- 测试：规划 Agent 生成 `requires` + `artifacts/test.png` 验收；开发者 Agent 通过 MCP 调用图片工具 5 次（其中 1 次因下载目标已存在失败，生成已扣费），最终验收通过并提交；覆盖下载测试通过；`pnpm build` 通过
+- 成本：新账号测试共 7 积分（1 可用性 + 5 Agent 迭代，其中 1 次因覆盖冲突浪费 + 1 覆盖测试），旧账号 1 积分；覆盖冲突已修复，临时项目与脚本已清理
+- 旧账号的测试画布保留（CLI 无删除画布命令，按用户要求不再处理）
+- 待浏览器验收：能力面板、计划 `requires` / 缺口提示、图片生成日志、节点详情与产物
+- 下一步：验收后进入 Step 15 记忆链 v1
+
+## 2026-11-14 · Step 14 完成
+
+- 用户已在浏览器验收通过：能力面板、计划 `requires`、图片生成与产物均正常
+- 更新 `docs/PROGRESS.md`：Step 14 勾选，当前步骤推进到 Step 15
+- 提交并推送 Step 14 代码与文档
+- 下一步：Step 15 记忆链 v1
+
 ## 2026-11-14 · Step 13 完成
 
 - 用户已在浏览器验收通过：计划契约展示、验收日志、通过/失败结果详情均正常

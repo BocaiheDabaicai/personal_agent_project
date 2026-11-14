@@ -19,6 +19,7 @@ export const planNodeSchema = z.object({
   spec: z.string().min(1),
   order: z.number().int().nonnegative(),
   verification: verificationSchema.optional(),
+  requires: z.array(z.string().min(1)).max(10).default([]),
 })
 
 export const planEdgeSchema = z.object({

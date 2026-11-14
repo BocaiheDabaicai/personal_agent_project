@@ -2,6 +2,7 @@ import { query } from '@anthropic-ai/claude-agent-sdk'
 import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { formatPlanError, validatePlan, type Plan } from '../../shared/schemas/plan'
+import { capabilityCatalogText } from '../capabilities/registry'
 
 interface PlannerProject {
   id: number
@@ -13,7 +14,12 @@ interface PlannerProject {
 
 const PLAN_RELATIVE_PATH = '.agent/plan.json'
 
-function buildPrompt(project: PlannerProject, previousError: string, feedback: string): string {
+function buildPrompt(
+  project: PlannerProject,
+  previousError: string,
+  feedback: string,
+  capabilityCatalog: string,
+): string {
   const schemaExample = JSON.stringify(
     {
       summary: '一句话概括计划',
@@ -54,6 +60,9 @@ function buildPrompt(project: PlannerProject, previousError: string, feedback: s
 
 项目目标：
 ${project.goal}
+
+当前可用能力：
+${capabilityCatalog}
 ${iterationHint}
 请在当前工作区创建执行计划，写入 ${PLAN_RELATIVE_PATH}。只允许写这一个文件，不要修改其他文件，不要运行命令。
 ${retryHint}
@@ -71,6 +80,7 @@ ${schemaExample}
 8. 任务拆小，develop 节点 1-4 个
 9. 每个 develop 节点必须提供 verification，至少包含一条 command 或一个 artifact；review / gate 不需要
 10. verification.commands 在项目仓库根目录执行；expectedOutput 是 stdout/stderr 的子串；artifacts 是相对仓库根目录的路径
+11. 如果 develop 节点需要图片生成，写 "requires": ["image.generate"]，并在 spec 中说明画面、比例和输出路径（artifacts/...）；只能使用上面“当前可用能力”中列出的能力，当前不可用的能力不要假设可用
 完成后停止。`
 }
 
@@ -78,9 +88,10 @@ async function runPlanner(
   project: PlannerProject,
   previousError: string,
   feedback: string,
+  capabilityCatalog: string,
 ): Promise<void> {
   const stream = query({
-    prompt: buildPrompt(project, previousError, feedback),
+    prompt: buildPrompt(project, previousError, feedback, capabilityCatalog),
     options: {
       cwd: project.repoPath,
       tools: ['Read', 'Write', 'Glob', 'Grep'],
@@ -112,12 +123,13 @@ export async function generatePlan(project: PlannerProject, feedback = ''): Prom
   mkdirSync(agentDir, { recursive: true })
 
   let lastError = ''
+  const capabilityCatalog = await capabilityCatalogText()
 
   for (let attempt = 1; attempt <= 2; attempt += 1) {
     rmSync(planPath, { force: true })
 
     try {
-      await runPlanner(project, lastError, feedback)
+      await runPlanner(project, lastError, feedback, capabilityCatalog)
     } catch (error) {
       lastError = formatPlanError(error)
       continue
