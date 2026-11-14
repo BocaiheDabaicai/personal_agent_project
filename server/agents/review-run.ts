@@ -9,6 +9,24 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
+function verificationSummaryFor(node: { verificationResult: string | null }): string {
+  if (!node.verificationResult) {
+    return '未配置确定性验收'
+  }
+  try {
+    const parsed = JSON.parse(node.verificationResult) as {
+      ok?: boolean
+      summary?: string
+      checks?: unknown[]
+    }
+    return `${parsed.ok ? '通过' : '未通过'}：${parsed.summary ?? ''}（${
+      parsed.checks?.length ?? 0
+    } 项检查）`
+  } catch {
+    return '验收结果无法解析'
+  }
+}
+
 function findCommitForNode(repoPath: string, nodeKey: string): string | undefined {
   try {
     const output = git(repoPath, [
@@ -131,6 +149,7 @@ async function executeReviewRun(run: RunState, project: Project): Promise<void> 
               order: developNode.order,
             },
             commitHash,
+            verificationSummary: verificationSummaryFor(developNode),
           },
           {
             onText: (text) => {

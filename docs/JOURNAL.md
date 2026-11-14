@@ -252,3 +252,22 @@
 - 更新 `docs/PROGRESS.md`：Step 12 勾选，当前步骤推进到 Step 13
 - 提交并推送 Step 12 代码、架构/集成规划文档与生成计划回归修复
 - 下一步：Step 13 验收契约与确定性验证
+
+## 2026-11-14 · Step 13 验收契约与确定性验证（实现，待验收）
+
+- `shared/schemas/plan.ts` 新增 verification 契约；develop 节点必须至少有一条命令或一个产物，规划 Agent 的 prompt 同步要求
+- `nodes` 增加 `verification` / `verification_result` 两列并 `db:push`
+- 新增 `server/agents/verification.ts`：执行命令（退出码/输出子串/超时/取消）与产物检查，结果写入 `.agent/verifications/<节点>.json`
+- 开发者运行：Agent 完成后先验收，通过才提交；失败则节点 failed、结果入库，重跑时清空旧 commit
+- 审查 Agent 的 prompt 注入平台验收摘要与验收文件路径
+- 工作台：节点详情展示验收契约与检查详情；旧计划显示“未配置验收契约”警告；日志新增 `verify_start` / `verify_result`
+- 验证：验收器通过/失败/超时、计划校验、真实规划 Agent 产出契约（`node hi.js` + `hi.js`）、开发验收通过并提交、审查通过；强制越界产物契约时节点 failed 且结果可见；临时项目已清理；`pnpm build` 通过
+- 待浏览器验收：计划审批页的契约展示、运行日志的验收事件、节点详情的通过/失败结果
+- 下一步：验收后进入 Step 14 能力注册表 + MCP 最小接入
+
+## 2026-11-14 · Step 13 完成
+
+- 用户已在浏览器验收通过：计划契约展示、验收日志、通过/失败结果详情均正常
+- 更新 `docs/PROGRESS.md`：Step 13 勾选，当前步骤推进到 Step 14
+- 提交并推送 Step 13 代码与文档
+- 下一步：Step 14 能力注册表 + MCP 最小接入

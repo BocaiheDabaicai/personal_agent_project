@@ -95,3 +95,9 @@ Nuxt 4 + TypeScript + Tailwind 4 + DaisyUI 5 + Vue Flow + SQLite（Drizzle + bet
 `runs` / `run_events` 写入 SQLite，作为运行的事实源；内存只保留活跃运行与实时订阅。取消通过 `AbortController` 贯穿 Agent SDK：先把 running 节点退回 pending，再记录 `run_done(cancelled)`，使运行可继续。服务启动时把遗留 running 运行标记 failed、running 节点回 pending，并补 `run_done`。运行结束后忽略迟到的 Agent 事件。
 
 理由：重启/断线后仍可回放与审计；取消不丢节点状态；避免 SDK abort 缓冲污染日志。已知代价：取消后 Agent 子进程可能短暂继续，事件已被丢弃；运行账本暂未做归档。
+
+## D-017 验收契约与确定性验证（2026-11-14）
+
+规划 Agent 为每个 develop 节点生成 `verification`：命令、期望退出码、输出子串、产物路径。平台在开发者完成后、提交前执行；通过才提交并标记 done，失败则节点 failed，结果写入 `nodes.verification_result` 与 `.agent/verifications/<节点>.json`，审查 Agent 读取摘要并继续判断规格符合度。
+
+理由：让“自测自审”有确定性依据，失败可定位、可重试；审查仍负责规格判断，不被“模型觉得可以”替代。风险：验收命令来自规划 Agent，必须在计划审批时人工检查；命令以用户权限执行，与 Agent Bash 同级。

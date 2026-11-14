@@ -1,12 +1,30 @@
 import { and, eq } from 'drizzle-orm'
+import { verificationSchema, type PlanVerification } from '../../shared/schemas/plan'
 import { nodes, type Project } from '../db/schema'
 import { db } from '../utils/db'
 import { ensureWorkspace, git } from '../utils/workspace'
 import { createRun, emitRunEvent, finishRun, type RunState } from '../utils/runManager'
 import { runDeveloperNode } from './developer'
+import { runNodeVerification } from './verification'
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
+}
+
+function parseVerification(raw: string | null): PlanVerification | null {
+  if (!raw) {
+    return null
+  }
+  try {
+    const parsed = verificationSchema.safeParse(JSON.parse(raw))
+    return parsed.success ? parsed.data : null
+  } catch {
+    return null
+  }
+}
+
+function hasChecks(contract: PlanVerification): boolean {
+  return contract.commands.length > 0 || contract.artifacts.length > 0
 }
 
 function commitNode(repoPath: string, node: { title: string; nodeKey: string }): string | undefined {
@@ -47,13 +65,26 @@ async function executeRun(run: RunState, project: Project): Promise<void> {
         return
       }
 
-      db.update(nodes).set({ status: 'running' }).where(eq(nodes.id, node.id)).run()
+      db.update(nodes)
+        .set({ status: 'running', verificationResult: null, commitHash: null })
+        .where(eq(nodes.id, node.id))
+        .run()
       emitRunEvent(run, {
         type: 'node_start',
         nodeKey: node.nodeKey,
         title: node.title,
         text: `开始：${node.title}`,
       })
+
+      const verification = parseVerification(node.verification)
+      if (node.verification && !verification) {
+        emitRunEvent(run, {
+          type: 'text',
+          nodeKey: node.nodeKey,
+          title: node.title,
+          text: '验收契约为空或无法解析，跳过确定性验证',
+        })
+      }
 
       try {
         await runDeveloperNode(
@@ -67,6 +98,7 @@ async function executeRun(run: RunState, project: Project): Promise<void> {
               title: node.title,
               spec: node.spec,
               order: node.order,
+              verification,
             },
           },
           {
@@ -88,6 +120,59 @@ async function executeRun(run: RunState, project: Project): Promise<void> {
         if (run.status !== 'running') {
           db.update(nodes).set({ status: 'pending' }).where(eq(nodes.id, node.id)).run()
           return
+        }
+
+        if (verification && hasChecks(verification)) {
+          emitRunEvent(run, {
+            type: 'verify_start',
+            nodeKey: node.nodeKey,
+            title: node.title,
+            text: '开始确定性验收',
+          })
+
+          const result = await runNodeVerification(
+            repoPath,
+            node.nodeKey,
+            verification,
+            run.abortController.signal,
+          )
+
+          if (run.status !== 'running') {
+            db.update(nodes).set({ status: 'pending' }).where(eq(nodes.id, node.id)).run()
+            return
+          }
+
+          db.update(nodes)
+            .set({ verificationResult: JSON.stringify(result) })
+            .where(eq(nodes.id, node.id))
+            .run()
+
+          emitRunEvent(run, {
+            type: 'verify_result',
+            nodeKey: node.nodeKey,
+            title: node.title,
+            ok: result.ok,
+            text: result.summary,
+            output: result.output,
+          })
+
+          if (!result.ok) {
+            throw new Error(result.summary)
+          }
+        } else if (!node.verification) {
+          emitRunEvent(run, {
+            type: 'text',
+            nodeKey: node.nodeKey,
+            title: node.title,
+            text: '该节点未配置验收契约，跳过确定性验证',
+          })
+        } else if (verification) {
+          emitRunEvent(run, {
+            type: 'text',
+            nodeKey: node.nodeKey,
+            title: node.title,
+            text: '验收契约为空，跳过确定性验证',
+          })
         }
 
         const commit = commitNode(repoPath, node)

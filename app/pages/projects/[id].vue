@@ -17,10 +17,42 @@ interface PlanNodeRow {
   kind: string
   title: string
   spec: string
+  verification: string | null
+  verificationResult: string | null
   status: string
   x: number
   y: number
   order: number
+}
+
+interface VerificationCommand {
+  command: string
+  expectedExitCode?: number
+  expectedOutput?: string
+  timeoutMs?: number
+}
+
+interface VerificationContract {
+  commands: VerificationCommand[]
+  artifacts: string[]
+}
+
+interface VerificationCheck {
+  kind: 'command' | 'artifact'
+  target: string
+  ok: boolean
+  exitCode?: number
+  output?: string
+  error?: string
+  durationMs?: number
+}
+
+interface VerificationResult {
+  ok: boolean
+  summary: string
+  checks: VerificationCheck[]
+  output?: string
+  ranAt?: string
 }
 
 interface PlanEdgeRow {
@@ -127,6 +159,43 @@ const latestReviews = computed(() => {
 const selectedKey = ref<string | null>(null)
 const selectedNode = computed(
   () => planNodes.value.find(node => node.nodeKey === selectedKey.value) ?? null,
+)
+
+function parseJson<T>(raw: string | null | undefined): T | null {
+  if (!raw) {
+    return null
+  }
+  try {
+    return JSON.parse(raw) as T
+  } catch {
+    return null
+  }
+}
+
+const selectedVerification = computed<VerificationContract | null>(() => {
+  const parsed = parseJson<VerificationContract>(selectedNode.value?.verification)
+  if (!parsed) {
+    return null
+  }
+  return {
+    commands: Array.isArray(parsed.commands) ? parsed.commands : [],
+    artifacts: Array.isArray(parsed.artifacts) ? parsed.artifacts : [],
+  }
+})
+
+const selectedVerificationResult = computed<VerificationResult | null>(() => {
+  const parsed = parseJson<VerificationResult>(selectedNode.value?.verificationResult)
+  if (!parsed) {
+    return null
+  }
+  return {
+    ...parsed,
+    checks: Array.isArray(parsed.checks) ? parsed.checks : [],
+  }
+})
+
+const developNodesWithoutVerification = computed(
+  () => developNodes.value.filter(node => !node.verification).length,
 )
 
 const actionError = ref('')
@@ -342,6 +411,12 @@ function logText(entry: RunEvent): string {
       return entry.text || '开始执行计划'
     case 'node_start':
       return `▶ ${entry.title || entry.nodeKey || '节点'}`
+    case 'verify_start':
+      return `▶ 验收：${entry.title || entry.nodeKey || '节点'}`
+    case 'verify_result':
+      return `${entry.ok === false ? '✗' : '✓'} ${
+        entry.text || (entry.ok === false ? '验收未通过' : '验收通过')
+      }`
     case 'text':
       return entry.text || ''
     case 'tool_use':
@@ -384,6 +459,12 @@ function logClass(entry: RunEvent): string {
   if (entry.type === 'node_start') {
     return 'text-warning'
   }
+  if (entry.type === 'verify_start') {
+    return 'text-info'
+  }
+  if (entry.type === 'verify_result') {
+    return entry.ok === false ? 'text-error' : 'text-success'
+  }
   if (entry.type === 'tool_use') {
     return 'text-info'
   }
@@ -409,7 +490,8 @@ function handleRunEvent(entry: RunEvent) {
   if (
     entry.type === 'node_start' ||
     entry.type === 'node_done' ||
-    entry.type === 'node_failed'
+    entry.type === 'node_failed' ||
+    entry.type === 'verify_result'
   ) {
     void refreshPlan()
   }
@@ -695,6 +777,86 @@ async function generatePlanAction(feedback = '') {
                     </span>
                   </div>
                   <p class="mt-2 whitespace-pre-wrap text-xs opacity-70">{{ selectedNode.spec }}</p>
+
+                  <div
+                    v-if="selectedNode.kind === 'develop'"
+                    class="mt-3 rounded-box border border-base-300 bg-base-200/50 p-2"
+                  >
+                    <div class="text-[11px] uppercase tracking-wider opacity-50">验收契约</div>
+                    <template v-if="selectedVerification">
+                      <ul class="mt-1 space-y-1 text-[11px]">
+                        <li
+                          v-for="(command, index) in selectedVerification.commands"
+                          :key="`command-${index}`"
+                          class="break-all"
+                        >
+                          <span class="badge badge-xs badge-outline">命令</span>
+                          <code class="ml-1">{{ command.command }}</code>
+                          <span class="opacity-50">
+                            · 退出码 {{ command.expectedExitCode ?? 0 }}
+                            <template v-if="command.expectedOutput">
+                              · 输出含「{{ command.expectedOutput }}」
+                            </template>
+                          </span>
+                        </li>
+                        <li
+                          v-for="artifact in selectedVerification.artifacts"
+                          :key="`artifact-${artifact}`"
+                          class="break-all"
+                        >
+                          <span class="badge badge-xs badge-outline">产物</span>
+                          <span class="ml-1">{{ artifact }}</span>
+                        </li>
+                      </ul>
+                    </template>
+                    <p v-else class="mt-1 text-[11px] text-warning">
+                      未配置验收契约（旧计划），本次会跳过确定性验证。
+                    </p>
+
+                    <div
+                      v-if="selectedVerificationResult"
+                      class="mt-2 border-t border-base-300 pt-2"
+                    >
+                      <div class="flex flex-wrap items-center gap-2 text-[11px]">
+                        <span
+                          class="badge badge-xs"
+                          :class="
+                            selectedVerificationResult.ok ? 'badge-success' : 'badge-error'
+                          "
+                        >
+                          {{ selectedVerificationResult.ok ? '通过' : '未通过' }}
+                        </span>
+                        <span class="opacity-70">{{ selectedVerificationResult.summary }}</span>
+                      </div>
+                      <details
+                        v-if="selectedVerificationResult.checks.length"
+                        class="mt-1"
+                      >
+                        <summary class="cursor-pointer text-[11px] opacity-60">检查详情</summary>
+                        <ul class="mt-1 space-y-1 text-[11px]">
+                          <li
+                            v-for="(check, index) in selectedVerificationResult.checks"
+                            :key="index"
+                          >
+                            <span
+                              class="badge badge-xs"
+                              :class="check.ok ? 'badge-success' : 'badge-error'"
+                            >
+                              {{ check.ok ? 'OK' : 'FAIL' }}
+                            </span>
+                            <span class="ml-1 break-all">{{ check.target }}</span>
+                            <div v-if="check.error" class="text-error opacity-80">
+                              {{ check.error }}
+                            </div>
+                            <pre
+                              v-if="check.output"
+                              class="mt-1 max-h-24 overflow-auto whitespace-pre-wrap break-all rounded bg-base-300/40 p-1 text-[10px] opacity-70"
+                            >{{ check.output }}</pre>
+                          </li>
+                        </ul>
+                      </details>
+                    </div>
+                  </div>
                 </template>
                 <div v-else class="text-xs opacity-60">点击画布中的节点查看详情。</div>
               </section>
@@ -707,6 +869,12 @@ async function generatePlanAction(feedback = '') {
 
                 <template v-if="projectStatus === 'planned'">
                   <p class="mb-2 text-xs opacity-60">确认执行计划后批准；不满意可打回并说明原因。</p>
+                  <div
+                    v-if="developNodesWithoutVerification"
+                    class="alert alert-warning mb-2 py-2 text-xs"
+                  >
+                    有 {{ developNodesWithoutVerification }} 个开发节点没有验收契约，本次会跳过确定性验证。建议打回后重新生成计划。
+                  </div>
                   <div class="flex gap-2">
                     <button
                       class="btn btn-sm btn-success wb-press"

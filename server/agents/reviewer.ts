@@ -7,6 +7,7 @@ import {
   type Review,
 } from '../../shared/schemas/review'
 import { consumeAgentStream, type AgentCallbacks } from './agent-stream'
+import { verificationRelativePath } from './verification'
 
 export interface ReviewerNode {
   nodeKey: string
@@ -23,6 +24,7 @@ export interface ReviewerContext {
   reviewNode: ReviewerNode
   developNode: ReviewerNode
   commitHash: string
+  verificationSummary: string
 }
 
 export type ReviewerCallbacks = AgentCallbacks
@@ -77,6 +79,8 @@ ${context.planSummary}
 - 规格: ${context.developNode.spec}
 
 该开发节点的提交：${context.commitHash}
+平台确定性验收：${context.verificationSummary}
+验收详情：${verificationRelativePath(context.developNode.nodeKey)}（若存在）
 
 当前工作目录就是项目仓库。请使用 git show / git diff 查看该提交的改动，对照开发节点规格进行审查，并运行必要的验证命令。
 只允许写入 ${reviewPath}，不要修改其他文件，不要执行 git commit。
@@ -90,7 +94,8 @@ ${schemaExample}
 3. fail 时 issues 至少包含一个问题
 4. severity 只能是 blocker / major / minor；message 要具体可执行
 5. 能定位到文件和行号时填写 file / line，否则省略
-6. 完成后停止`
+6. 平台验收通过不等于规格通过；仍需审查 diff 与规格是否一致
+7. 完成后停止`
 }
 
 async function runReviewer(

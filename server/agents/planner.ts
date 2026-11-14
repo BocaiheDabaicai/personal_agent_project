@@ -18,7 +18,19 @@ function buildPrompt(project: PlannerProject, previousError: string, feedback: s
     {
       summary: '一句话概括计划',
       nodes: [
-        { id: 'build-greeting', kind: 'develop', title: '实现问候脚本', spec: '具体要求与验收标准', order: 0 },
+        {
+          id: 'build-greeting',
+          kind: 'develop',
+          title: '实现问候脚本',
+          spec: '具体要求与验收标准',
+          order: 0,
+          verification: {
+            commands: [
+              { command: 'node greet.js', expectedExitCode: 0, expectedOutput: 'Hello, Alice' },
+            ],
+            artifacts: ['greet.js'],
+          },
+        },
         { id: 'review-greeting', kind: 'review', title: '审查问候脚本', spec: '审查要点', order: 1 },
         { id: 'accept', kind: 'gate', title: '人工验收', spec: '验收标准', order: 2 },
       ],
@@ -57,6 +69,8 @@ ${schemaExample}
 6. edges 的 source/target 必须指向已有节点 id
 7. spec 写给后续执行者：具体做什么、完成标准是什么
 8. 任务拆小，develop 节点 1-4 个
+9. 每个 develop 节点必须提供 verification，至少包含一条 command 或一个 artifact；review / gate 不需要
+10. verification.commands 在项目仓库根目录执行；expectedOutput 是 stdout/stderr 的子串；artifacts 是相对仓库根目录的路径
 完成后停止。`
 }
 

@@ -19,6 +19,8 @@ export const nodes = sqliteTable('nodes', {
   kind: text('kind').notNull(),
   title: text('title').notNull(),
   spec: text('spec').notNull(),
+  verification: text('verification'),
+  verificationResult: text('verification_result'),
   status: text('status').notNull().default('pending'),
   order: integer('node_order').notNull(),
   x: integer('x').notNull().default(0),

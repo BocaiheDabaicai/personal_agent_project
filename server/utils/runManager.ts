@@ -12,6 +12,8 @@ export type RunEventType =
   | 'text'
   | 'tool_use'
   | 'tool_result'
+  | 'verify_start'
+  | 'verify_result'
   | 'node_done'
   | 'node_failed'
   | 'run_done'
